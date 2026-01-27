@@ -7,7 +7,7 @@
 
 struct Server server_constructor(int domain, int service, int protocol,
                                  u_long interface, int port, int backlog,
-                                 void (*launch)(struct Server *)) {
+                                 ClientCallback on_client,void* context) {
 
   struct Server server;
   server.domain = domain;
@@ -45,7 +45,19 @@ struct Server server_constructor(int domain, int service, int protocol,
     exit(1);
   }
 
-  server.launch = launch;
+  server.on_client = on_client;
+  server.context = context;
 
   return server;
+}
+
+void server_loop(struct Server *server) {
+    while (1) {
+        socklen_t addr_len = sizeof(server->address);
+        int client_fd = accept(server->socket_fd, (struct sockaddr *)&server->address, &addr_len);
+        if (client_fd < 0) continue;
+
+        // call the protocol-specific callback
+        server->on_client(client_fd, server->context);
+    }
 }

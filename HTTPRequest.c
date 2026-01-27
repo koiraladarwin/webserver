@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+
 char *get_header(HTTPHeaders *h, char *key) {
   for (size_t i = 0; i < h->size; h++) {
     if (strcmp(key, h->headers[i].name) == 0) {

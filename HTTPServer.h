@@ -3,17 +3,20 @@
 
 #include "HTTPRequest.h"
 #include <stdint.h>
+#include "HTTPResponse.h"
 
-typedef struct ResponseWriter{
-  int (*write_status_code)(int);
-  int (*write_status_message)(char *);
-  int (*write_message_type)(char *);
-  int (*write_body)(char *);
-}ResponseWriter;
+typedef enum {
+    ROUTE_EXACT,
+    ROUTE_PREFIX,
+    ROUTE_PARAM
+} RouteType;
+
+
 
 typedef struct{
   const char* route;
-  void (*handler_func)(HTTPRequest* req,ResponseWriter* res);
+  RouteType route_type;
+  void (*handler_func)(HTTPRequest* req,HTTPResponseWriter* res);
 }HTTPHandler;
 
 typedef struct  {
@@ -26,4 +29,5 @@ typedef struct  {
 HTTPServer http_server_constructor(uint16_t port);
 void http_listen_and_server(HTTPServer* http_server);
 int add_handler(HTTPServer* http_server,HTTPHandler handler);
+
 #endif

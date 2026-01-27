@@ -1,0 +1,57 @@
+#include "HTTPRequest.h"
+#include "HTTPResponse.h"
+#include "HTTPServer.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void home_handler(HTTPRequest *req, HTTPResponseWriter *res) {
+  res->write_status_code(res, 200);
+  res->write_body(res, "<h1>hello<h1>");
+}
+
+void batman_handler(HTTPRequest *req, HTTPResponseWriter *res) {
+  const char *body = req->body ? req->body : "no body";
+
+  size_t needed = snprintf(NULL, 0, "<h1>%s</h1>", body) + 1;
+  char response[needed];
+
+  snprintf(response, needed, "<h1>%s</h1>", body);
+
+  res->write_status_code(res, 200);
+  res->write_header(res, "Content-Type", "text/html");
+  res->write_body(res, response);
+}
+
+
+
+void test_handler(HTTPRequest *req, HTTPResponseWriter *res) {
+    // Plain text buffer
+    char buf[1024];  // adjust size if you expect many params
+    size_t offset = 0;
+
+    for (size_t i = 0; i < req->query_count; i++) {
+        char* key = req->queries[i].key;
+        char* value = req->queries[i].value ? req->queries[i].value : "";
+
+        offset += snprintf(buf + offset, sizeof(buf) - offset, "%s=%s\n", key, value);
+        if (offset >= sizeof(buf)) break; // prevent overflow
+    }
+
+    res->write_status_code(res, 200);
+    res->write_body(res, buf);
+}
+
+
+
+int main() {
+  HTTPServer http_server = http_server_constructor(80);
+
+  add_handler(&http_server, (HTTPHandler){"/home", ROUTE_EXACT, home_handler});
+  add_handler(&http_server,
+              (HTTPHandler){"/batman", ROUTE_EXACT, batman_handler});
+  add_handler(&http_server,
+              (HTTPHandler){"/test", ROUTE_EXACT, test_handler});
+
+  http_listen_and_server(&http_server);
+}

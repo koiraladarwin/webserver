@@ -17,12 +17,18 @@ int rw_write_header(HTTPResponseWriter* res, const char* key, const char* value)
 }
 
 int rw_write_body(HTTPResponseWriter* res, const char* body) {
-    // end headers with empty line
-    strcat(res->headers, "\r\n");
+    // write Content-Length automatically for keep-alive this imp
+    char content_length_header[64];
+    snprintf(content_length_header, sizeof(content_length_header),
+             "Content-Length: %zu\r\n", strlen(body));
+
+    strcat(res->headers, content_length_header);
+    strcat(res->headers, "\r\n"); // end headers
 
     write(res->client_fd, res->headers, strlen(res->headers));
     return write(res->client_fd, body, strlen(body));
 }
+
 
 HTTPResponseWriter make_http_response_writer(int client_fd) {
     HTTPResponseWriter res;

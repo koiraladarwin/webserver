@@ -23,5 +23,5 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 run: clean all
-	./$(BUILD_DIR)/$(TARGET)
+	sudo ./$(BUILD_DIR)/$(TARGET)
 

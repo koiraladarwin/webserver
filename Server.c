@@ -1,13 +1,15 @@
 #include "Server.h"
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 struct Server server_constructor(int domain, int service, int protocol,
                                  u_long interface, int port, int backlog,
-                                 ClientCallback on_client,void* context) {
+                                 ClientCallback on_client, void *context) {
 
   struct Server server;
   server.domain = domain;
@@ -51,13 +53,34 @@ struct Server server_constructor(int domain, int service, int protocol,
   return server;
 }
 
-void server_loop(struct Server *server) {
-    while (1) {
-        socklen_t addr_len = sizeof(server->address);
-        int client_fd = accept(server->socket_fd, (struct sockaddr *)&server->address, &addr_len);
-        if (client_fd < 0) continue;
+typedef struct {
+  int client_fd;
+  struct Server *server;
+} ThreadArg;
 
-        // call the protocol-specific callback
-        server->on_client(client_fd, server->context);
-    }
+void *client_thread(void *args) {
+  ThreadArg *targ = (ThreadArg *)args;
+  targ->server->on_client(targ->client_fd, targ->server->context);
+  free(targ);
+  return NULL;
+}
+
+void server_loop(struct Server *server) {
+  while (1) {
+    socklen_t addr_len = sizeof(server->address);
+    int client_fd = accept(server->socket_fd,
+                           (struct sockaddr *)&server->address, &addr_len);
+    if (client_fd < 0)
+      continue;
+
+    ThreadArg *targ = malloc(sizeof(ThreadArg));
+    targ->client_fd = client_fd;
+    targ->server = server;
+
+    pthread_t tid;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&tid, &attr, client_thread, targ);
+  }
 }

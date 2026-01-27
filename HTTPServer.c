@@ -102,7 +102,7 @@ void on_client(int client_fd, void *context) {
 
 void http_listen_and_server(HTTPServer *http_server) {
   struct Server server = server_constructor(AF_INET, SOCK_STREAM, 0, INADDR_ANY,
-                                            80, 10, &on_client, http_server);
+                                            http_server->port, 1024, &on_client, http_server);
   server_loop(&server);
 }
 

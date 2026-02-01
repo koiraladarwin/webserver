@@ -6,6 +6,7 @@
 #include <sys/cdefs.h>
 
 #define MAX_HTTP_VERSION_SIZE 8
+
 // parses queries from uri
 void parse_queries(HTTPRequest *req) {
   req->query_count = 0;
@@ -35,6 +36,7 @@ void parse_queries(HTTPRequest *req) {
 
   *query_start_pos = '\0';
 }
+
 char *get_header(HTTPHeaders *h, char *key) {
   for (size_t i = 0; i < h->size; h++) {
     if (strcmp(key, h->header[i].name) == 0) {
@@ -83,14 +85,14 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
   }
   char *req_line_end = memmem(req, req_len, "\r\n", 2);
   if (!req_line_end || req_line_end > headers_terminator)
-    return 2;
+    return -2;
 
   char *sp1 = memmem(req, req_line_end - req, " ", 1);
   if (!sp1 || sp1 > headers_terminator)
     return -1;
   char *sp2 = memmem(sp1 + 1, req_line_end - (sp1 + 1), " ", 1);
   if (!sp2 || sp2 > headers_terminator)
-    return -2;
+    return -1;
 
   char *method = req;
   size_t method_len = sp1 - req;
@@ -159,7 +161,7 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
 
     header_start = header_end + 2;
   }
-  return 0;
+  return (headers_terminator + 4) - req;
 }
 
 int ParseRequest(char *request, HTTPRequest *out) {

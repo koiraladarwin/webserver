@@ -8,8 +8,6 @@
 #include <string.h>
 #include <unistd.h>
 
-
-
 HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
                                  char **param_out) {
   *param_out = NULL;
@@ -44,28 +42,50 @@ HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
 }
 
 void on_client(int client_fd, void *context) {
+  HTTPRequest req;
   size_t buffersize = 3000;
   char *buffer = malloc(buffersize);
   memset(buffer, 0, buffersize);
-  ssize_t total_read = 0;
+  ssize_t buffer_read = 0;
+
+  int final_headers_size = 0;
 
   if (!buffer)
     return; // sanity check
   while (1) {
-    ssize_t n = read(client_fd, buffer + total_read, buffersize - total_read);
-    total_read += n;
+    ssize_t n = read(client_fd, buffer + buffer_read, buffersize - buffer_read);
+    buffer_read += n;
     if (n <= 0) {
       break;
     }
-    HTTPRequest req;
-    int code = parse_headers(buffer, buffersize, &req);
-    if (code == -1) {
-      break;
-    };
+    if (!final_headers_size) {
+      int header_len = parse_headers(buffer, buffersize, &req);
+    
+      //error parsing
+      if (header_len == -1) {
+        break;
+      };
 
-    // 2 means headers not complete
-    if (code == 2) {
-      if (buffersize <= total_read) {
+      // 2 means headers not complete
+      if (header_len == -2) {
+        if (buffersize <= buffer_read) {
+          buffersize *= 2;
+          char *temp = realloc(buffer, buffersize);
+          if (!temp) {
+            break;
+          }
+          buffer = temp;
+        }
+        continue;
+      }
+
+      parse_queries(&req);
+      final_headers_size = header_len;
+    }
+
+    // only done after sucessfully all headers are parsed
+    if (n != 0) {
+      if (buffersize <= buffer_read) {
         buffersize *= 2;
         char *temp = realloc(buffer, buffersize);
         if (!temp) {
@@ -73,12 +93,10 @@ void on_client(int client_fd, void *context) {
         }
         buffer = temp;
       }
-      continue;
     }
-
-    // only done after sucessfully all headers are parsed
-    parse_queries(&req);
-    HTTPServer *http_server = context;
+    req.body = &buffer[final_headers_size];
+    HTTPServer *http_server = context; // refrensing ourself (kinda like this in
+                                       // obj oriented language)
     HTTPResponseWriter res = make_http_response_writer(client_fd);
 
     char *param = NULL;

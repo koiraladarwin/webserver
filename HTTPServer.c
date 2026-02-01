@@ -43,25 +43,38 @@ HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
 
 void on_client(int client_fd, void *context) {
   HTTPRequest req;
-  size_t buffersize = 3000;
+  size_t buffersize = 100;
   char *buffer = malloc(buffersize);
-  memset(buffer, 0, buffersize);
   ssize_t buffer_read = 0;
 
   int final_headers_size = 0;
 
-  if (!buffer)
+  if (!buffer) {
+    close(client_fd);
     return; // sanity check
+  }
+
   while (1) {
-    ssize_t n = read(client_fd, buffer + buffer_read, buffersize - buffer_read);
+    if (buffersize <= buffer_read) {
+      buffersize += 1;
+      char *temp = realloc(buffer, buffersize);
+      if (!temp) {
+        break;
+      }
+      buffer = temp;
+    }
+
+    ssize_t n =
+        read(client_fd, buffer + buffer_read, buffersize - (buffer_read));
     buffer_read += n;
     if (n <= 0) {
       break;
     }
+
     if (!final_headers_size) {
       int header_len = parse_headers(buffer, buffersize, &req);
-    
-      //error parsing
+
+      // error parsing
       if (header_len == -1) {
         break;
       };
@@ -69,7 +82,7 @@ void on_client(int client_fd, void *context) {
       // 2 means headers not complete
       if (header_len == -2) {
         if (buffersize <= buffer_read) {
-          buffersize *= 2;
+          buffersize += 3;
           char *temp = realloc(buffer, buffersize);
           if (!temp) {
             break;
@@ -84,17 +97,23 @@ void on_client(int client_fd, void *context) {
     }
 
     // only done after sucessfully all headers are parsed
-    if (n != 0) {
+    char *content_length = get_header(req.headers, "content-length");
+    int int_content_length = strtol(content_length, NULL, 10);
+
+    if (buffer_read < final_headers_size + int_content_length) {
       if (buffersize <= buffer_read) {
-        buffersize *= 2;
+        buffersize += 1;
         char *temp = realloc(buffer, buffersize);
         if (!temp) {
           break;
         }
         buffer = temp;
       }
+      continue;
     }
+
     req.body = &buffer[final_headers_size];
+    req.body_len = buffer_read - final_headers_size;
     HTTPServer *http_server = context; // refrensing ourself (kinda like this in
                                        // obj oriented language)
     HTTPResponseWriter res = make_http_response_writer(client_fd);

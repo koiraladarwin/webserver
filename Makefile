@@ -3,7 +3,7 @@ CFLAGS = -Wall -Wextra -O2
 TARGET = server
 BUILD_DIR = build
 
-SRCS = test.c Server.c HTTPRequest.c HTTPResponse.c HTTPServer.c
+SRCS = test.c Server.c HTTPRequest.c HTTPResponse.c HTTPServer.c Helper.c
 OBJS = $(SRCS:%.c=$(BUILD_DIR)/%.o)
 
 .PHONY: all clean run dirs

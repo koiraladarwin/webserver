@@ -1,4 +1,5 @@
 #include "HTTPRequest.h"
+#include "Helper.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,10 +39,13 @@ void parse_queries(HTTPRequest *req) {
 }
 
 char *get_header(HTTPHeaders *h, char *key) {
-  for (size_t i = 0; i < h->size; h++) {
-    if (strcmp(key, h->header[i].name) == 0) {
+  for (size_t i = 0; i < h->size; i++) {
+    char *dup = strdup(h->header[i].name);
+    str_to_lower(dup);
+    if (strcmp(key, dup) == 0) {
       return h->header[i].value;
     }
+    free(dup);
   }
   return NULL;
 }
@@ -74,7 +78,7 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
   memset(out, 0, sizeof(*out));
   char *headers_terminator = memmem(req, req_len, "\r\n\r\n", 4);
   if (!headers_terminator)
-    return 2;
+    return -2;
 
   if ((headers_terminator - req) + 4 <= req_len) {
     out->body = headers_terminator + 4;
@@ -85,7 +89,7 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
   }
   char *req_line_end = memmem(req, req_len, "\r\n", 2);
   if (!req_line_end || req_line_end > headers_terminator)
-    return -2;
+    return -1;
 
   char *sp1 = memmem(req, req_line_end - req, " ", 1);
   if (!sp1 || sp1 > headers_terminator)
@@ -115,7 +119,16 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
     return -1;
   }
 
-  out->URI = uri;
+  out->URI = malloc(uri_len + 1);
+  if (!out->URI)
+    return -1;
+
+  // copy the URI bytes
+  memcpy(out->URI, uri, uri_len);
+
+  // null terminate
+  out->URI[uri_len] = '\0';
+
   out->URI_len = uri_len;
 
   char *ver = sp2 + 1;

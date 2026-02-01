@@ -112,13 +112,10 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
   char *header_end;
 
   out->headers = headers_init();
-  printf("all headers:\n%s\n", header_start);
-  printf("--------------\n");
   int i = 0;
   while (
       (header_end = memmem(header_start, headers_terminator + 2 - header_start,
                            "\r\n", 2))) {
-    printf("%d)", i++);
     char *colon = memmem(header_start, header_end - header_start, ":", 1);
     if (colon) {
       char *name = strndup(header_start, colon - header_start);
@@ -129,15 +126,11 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
 
       char *value = strndup(value_start, header_end - value_start);
 
-      printf("name :%s\t", name);
-      printf("value :%s\t\n", value);
       headers_add(out->headers, name, value);
     }
 
     header_start = header_end + 2;
   }
-
-  printf("--------------\n");
   return 0;
 }
 

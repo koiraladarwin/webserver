@@ -38,6 +38,7 @@ void test_handler(HTTPRequest *req, HTTPResponseWriter *res) {
     if (offset >= sizeof(buf))
       break; // prevent overflow
   }
+  snprintf(buf + offset, sizeof(buf) - offset, "params=%s", req->param);
   res->write_status_code(res, 200);
   res->write_body(res, buf);
 }

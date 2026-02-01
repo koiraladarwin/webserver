@@ -11,7 +11,7 @@
 // parses queries from uri
 void parse_queries(HTTPRequest *req) {
   req->query_count = 0;
-  char* temp_uri = malloc(req->URI_len);  
+  char *temp_uri = malloc(req->URI_len);
   memcpy(temp_uri, req->URI, req->URI_len);
   char *query_start_pos = strchr(temp_uri, '?');
   if (!query_start_pos)
@@ -54,12 +54,14 @@ HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
         return h;
       break;
     case ROUTE_PARAM: {
-      // e.g., route "/user/:id"
       size_t prefix_len = 0;
       while (h->route[prefix_len] && h->route[prefix_len] != ':')
         prefix_len++;
       if (strncmp(req->URI, h->route, prefix_len) == 0) {
-        *param_out = req->URI + prefix_len;
+        size_t param_len = req->URI_len - prefix_len;
+        *param_out = malloc(param_len + 1);
+        memcpy(*param_out, req->URI + prefix_len, param_len);
+        (*param_out)[param_len] = '\0';
         return h;
       }
       break;

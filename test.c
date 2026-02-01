@@ -39,6 +39,8 @@ void test_handler(HTTPRequest *req, HTTPResponseWriter *res) {
       break; // prevent overflow
   }
   snprintf(buf + offset, sizeof(buf) - offset, "params=%s", req->param);
+
+  res->write_header(res, "Content-Type", "text/html");
   res->write_status_code(res, 200);
   res->write_body(res, buf);
 }

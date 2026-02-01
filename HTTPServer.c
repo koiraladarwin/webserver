@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 
+//parses queries from uri 
 void parse_queries(HTTPRequest *req) {
     req->query_count = 0;
 
@@ -79,9 +80,9 @@ void on_client(int client_fd, void *context) {
     close(client_fd);
     return;
   }
-
   HTTPRequest req;
-  ParseRequest(buffer, &req);
+  parse_headers(buffer,30000,&req);
+ 
   parse_queries(&req);
   HTTPServer *http_server = context;
   HTTPResponseWriter res = make_http_response_writer(client_fd);
@@ -97,6 +98,7 @@ void on_client(int client_fd, void *context) {
     res.write_body(&res, "<h1>NOT FOUND</h1>");
   }
 
+  free(buffer);
   close(client_fd);
 }
 

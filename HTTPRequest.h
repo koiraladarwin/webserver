@@ -16,7 +16,7 @@ typedef struct {
 } Query;
 
 typedef struct {
-  HTTPHeader *headers;
+  HTTPHeader *header;
   size_t size;
   size_t capacity;
 } HTTPHeaders;
@@ -24,9 +24,11 @@ typedef struct {
 typedef struct {
   int method;
   char *URI;
+  size_t URI_len;
   float version;
-  HTTPHeaders *header;
+  HTTPHeaders *headers;
   char *body;
+  size_t body_len;
   char *param;
   Query queries[MAX_QUERY_PARAMS];
   size_t query_count;
@@ -34,6 +36,10 @@ typedef struct {
 
 char *get_header(HTTPHeaders *h, char *key);
 
+__attribute__((deprecated("Use parse_headers() instead")))
 int ParseRequest(char *request, HTTPRequest *out);
+
+int parse_headers(char *req, size_t req_len, HTTPRequest *out);
+
 void PrintHTTPRequest(const HTTPRequest *req);
 #endif

@@ -6,7 +6,35 @@
 #include <sys/cdefs.h>
 
 #define MAX_HTTP_VERSION_SIZE 8
+// parses queries from uri
+void parse_queries(HTTPRequest *req) {
+  req->query_count = 0;
+  char *temp_uri = malloc(req->URI_len);
+  memcpy(temp_uri, req->URI, req->URI_len);
+  char *query_start_pos = strchr(temp_uri, '?');
+  if (!query_start_pos)
+    return; // no query
 
+  char *query_str = query_start_pos + 1; // skip '?'
+  char *rest = query_str;
+  char *token;
+
+  while ((token = strsep(&rest, "&")) != NULL &&
+         req->query_count < MAX_QUERY_PARAMS) {
+    char *equals = strchr(token, '=');
+    if (equals) {
+      *equals = '\0';
+      req->queries[req->query_count].key = strdup(token);
+      req->queries[req->query_count].value = strdup(equals + 1);
+    } else {
+      req->queries[req->query_count].key = strdup(token);
+      req->queries[req->query_count].value = NULL;
+    }
+    req->query_count++;
+  }
+
+  *query_start_pos = '\0';
+}
 char *get_header(HTTPHeaders *h, char *key) {
   for (size_t i = 0; i < h->size; h++) {
     if (strcmp(key, h->header[i].name) == 0) {

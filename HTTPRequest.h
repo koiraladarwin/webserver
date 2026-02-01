@@ -40,6 +40,6 @@ __attribute__((deprecated("Use parse_headers() instead")))
 int ParseRequest(char *request, HTTPRequest *out);
 
 int parse_headers(char *req, size_t req_len, HTTPRequest *out);
-
+void parse_queries(HTTPRequest *req);
 void PrintHTTPRequest(const HTTPRequest *req);
 #endif

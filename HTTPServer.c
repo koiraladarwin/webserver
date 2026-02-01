@@ -95,10 +95,12 @@ void on_client(int client_fd, void *context) {
       parse_queries(&req);
       final_headers_size = header_len;
     }
-
+    int int_content_length = 0;
     // only done after sucessfully all headers are parsed
     char *content_length = get_header(req.headers, "content-length");
-    int int_content_length = strtol(content_length, NULL, 10);
+    if (content_length != NULL) {
+      int_content_length = strtol(content_length, NULL, 10);
+    }
 
     if (buffer_read < final_headers_size + int_content_length) {
       if (buffersize <= buffer_read) {

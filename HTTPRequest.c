@@ -122,13 +122,8 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
   out->URI = malloc(uri_len + 1);
   if (!out->URI)
     return -1;
-
-  // copy the URI bytes
   memcpy(out->URI, uri, uri_len);
-
-  // null terminate
   out->URI[uri_len] = '\0';
-
   out->URI_len = uri_len;
 
   char *ver = sp2 + 1;

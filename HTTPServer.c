@@ -71,6 +71,7 @@ HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
 void on_client(int client_fd, void *context) {
   size_t buffersize = 30000;
   char *buffer = malloc(buffersize);
+  memset(buffer, 0, buffersize);
   if (!buffer)
     return; // sanity check
 
@@ -81,8 +82,7 @@ void on_client(int client_fd, void *context) {
     return;
   }
   HTTPRequest req;
-  parse_headers(buffer,30000,&req);
- 
+  parse_headers(buffer,buffersize,&req);
   parse_queries(&req);
   HTTPServer *http_server = context;
   HTTPResponseWriter res = make_http_response_writer(client_fd);

@@ -8,12 +8,21 @@
 
 #define MAX_HTTP_VERSION_SIZE 8
 
-// parses queries from uri
+void queries_free(HTTPQuery *query, size_t len) {
+  for (int i = 0; i < len; i++) {
+    free(query->key);
+    free(query->value);
+  }
+}
+
 void parse_queries(HTTPRequest *req) {
   req->query_count = 0;
-  char *temp_uri = malloc(req->URI_len);
-  memcpy(temp_uri, req->URI, req->URI_len);
-  char *query_start_pos = strchr(temp_uri, '?');
+
+  // unnessary now since uri is a duped string
+  /*char *temp_uri = malloc(req->URI_len);*/
+  /*memcpy(temp_uri, req->URI, req->URI_len);*/
+
+  char *query_start_pos = strchr(req->URI, '?');
   if (!query_start_pos)
     return; // no query
 
@@ -64,12 +73,34 @@ HTTPHeaders *headers_init() {
 void headers_add(HTTPHeaders *h, char *name, char *value) {
   if (h->size >= h->capacity) {
     h->capacity *= 2;
-    h->header = realloc(h->header, sizeof(HTTPHeader) * h->capacity);
+
+    HTTPHeader *tmp = realloc(h->header, sizeof(HTTPHeader) * h->capacity);
+    if (!tmp) {
+      // freeing intentionally
+      free(name);
+      free(value);
+      return;
+    }
+
+    h->header = tmp;
   }
 
   h->header[h->size].name = name;
   h->header[h->size].value = value;
   h->size++;
+}
+
+void headers_free(HTTPHeaders *h) {
+  if (!h)
+    return;
+
+  for (size_t i = 0; i < h->size; i++) {
+    free(h->header[i].name);
+    free(h->header[i].value);
+  }
+
+  free(h->header);
+  free(h);
 }
 
 int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
@@ -149,7 +180,9 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
   char *header_start = req_line_end + 2;
   char *header_end;
 
-  out->headers = headers_init();
+  if (!out->headers) {
+    out->headers = headers_init();
+  }
   int i = 0;
   while (
       (header_end = memmem(header_start, headers_terminator + 2 - header_start,

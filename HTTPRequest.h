@@ -13,7 +13,7 @@ typedef struct {
 typedef struct {
   char *key;
   char *value;
-} Query;
+} HTTPQuery;
 
 typedef struct {
   HTTPHeader *header;
@@ -23,18 +23,20 @@ typedef struct {
 
 typedef struct {
   int method;
-  char *URI;
+  char *URI; //duped
   size_t URI_len;
   float version;
-  HTTPHeaders *headers;
+  HTTPHeaders *headers; //duped
   char *body;
   size_t body_len;
   char *param;
-  Query queries[MAX_QUERY_PARAMS];
+  HTTPQuery queries[MAX_QUERY_PARAMS]; //name and value are duped
   size_t query_count;
 } HTTPRequest;
 
 char *get_header(HTTPHeaders *h, char *key);
+void headers_free(HTTPHeaders *h);
+void queries_free(HTTPQuery *query, size_t len);
 
 __attribute__((deprecated("Use parse_headers() instead")))
 int ParseRequest(char *request, HTTPRequest *out);

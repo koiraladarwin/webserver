@@ -1,6 +1,7 @@
 #include "HTTPServer.h"
 #include "HTTPRequest.h"
 #include "HTTPResponse.h"
+#include "Helper.h"
 #include "Server.h"
 #include <stddef.h>
 #include <stdio.h>
@@ -43,7 +44,8 @@ HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
 
 void on_client(int client_fd, void *context) {
   HTTPRequest req;
-  size_t buffersize = 100;
+  req.headers = NULL;
+  size_t buffersize = 1000;
   char *buffer = malloc(buffersize);
   ssize_t buffer_read = 0;
 
@@ -55,6 +57,7 @@ void on_client(int client_fd, void *context) {
   }
 
   while (1) {
+
     if (buffersize <= buffer_read) {
       buffersize += 1;
       char *temp = realloc(buffer, buffersize);
@@ -67,7 +70,11 @@ void on_client(int client_fd, void *context) {
     ssize_t n =
         read(client_fd, buffer + buffer_read, buffersize - (buffer_read));
     buffer_read += n;
+
+    // http close signal
     if (n <= 0) {
+      printf("connection close reading 0 in read()\n");
+      fflush(0);
       break;
     }
 
@@ -131,8 +138,33 @@ void on_client(int client_fd, void *context) {
       res.write_status_code(&res, 404);
       res.write_body(&res, "<h1>NOT FOUND</h1>");
     }
+
+    char *connection_header = NULL;
+    char *h = get_header(req.headers, "connection");
+
+    if (h) {
+      connection_header = strdup(h);
+    };
+
+    if (connection_header) {
+      str_to_lower(connection_header);
+      if (strcmp(connection_header, "keep-alive") == 0) {
+        printf("keep alive detected\n");
+        buffer_read = 0;
+        final_headers_size = 0;
+        headers_free(req.headers);
+        free(req.URI);
+        queries_free(req.queries, req.query_count);
+        free(req.param);
+        continue;
+      };
+    }
+
     break;
   }
+
+  printf("connection close\n");
+  fflush(0);
 
   free(buffer);
   close(client_fd);

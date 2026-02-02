@@ -126,6 +126,18 @@ void on_client(int client_fd, void *context) {
                                        // obj oriented language)
     HTTPResponseWriter res = make_http_response_writer(client_fd);
 
+    char *connection_header = NULL;
+    char *h = get_header(req.headers, "connection");
+    if (h) {
+      connection_header = strdup(h);
+    };
+    if (connection_header) {
+      str_to_lower(connection_header);
+      if (strcmp(connection_header, "keep-alive") == 0) {
+        res.write_header(&res, "Connection", "keep-alive");
+      };
+    }
+
     char *param = NULL;
     HTTPHandler *matched_handler =
         route_match_handler(http_server, &req, &param);
@@ -138,17 +150,11 @@ void on_client(int client_fd, void *context) {
       res.write_body(&res, "<h1>NOT FOUND</h1>");
     }
 
-    char *connection_header = NULL;
-    char *h = get_header(req.headers, "connection");
-
-    if (h) {
-      connection_header = strdup(h);
-    };
-
     if (connection_header) {
+      fflush(0);
+
       str_to_lower(connection_header);
       if (strcmp(connection_header, "keep-alive") == 0) {
-        printf("keep alive detected on client fd: %d\n",client_fd);
         buffer_read = 0;
         final_headers_size = 0;
 
@@ -183,7 +189,6 @@ void on_client(int client_fd, void *context) {
     break;
   }
 
-  printf("connection close on client fd:%d\n", client_fd);
   fflush(0);
 
   free(buffer);

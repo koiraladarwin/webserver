@@ -9,7 +9,6 @@
 #include <string.h>
 #include <unistd.h>
 
-
 HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
                                  char **param_out) {
   *param_out = NULL;
@@ -75,8 +74,6 @@ void on_client(int client_fd, void *context) {
 
     // http close signal
     if (n <= 0) {
-      printf("connection close reading 0 in read()\n");
-      fflush(0);
       break;
     }
 
@@ -151,21 +148,42 @@ void on_client(int client_fd, void *context) {
     if (connection_header) {
       str_to_lower(connection_header);
       if (strcmp(connection_header, "keep-alive") == 0) {
-        printf("keep alive detected\n");
+        printf("keep alive detected on client fd: %d\n",client_fd);
         buffer_read = 0;
         final_headers_size = 0;
+
         headers_free(req.headers);
+        req.headers = NULL;
+
         free(req.URI);
+        req.URI = NULL;
+
         queries_free(req.queries, req.query_count);
+        req.query_count = 0;
+
         free(req.param);
+        req.param = NULL;
+
         continue;
       };
     }
 
+    headers_free(req.headers);
+    req.headers = NULL;
+
+    free(req.URI);
+    req.URI = NULL;
+
+    queries_free(req.queries, req.query_count);
+    req.query_count = 0;
+
+    free(req.param);
+    req.param = NULL;
+
     break;
   }
 
-  printf("connection close\n");
+  printf("connection close on client fd:%d\n", client_fd);
   fflush(0);
 
   free(buffer);

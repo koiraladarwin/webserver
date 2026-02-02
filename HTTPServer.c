@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
+
 HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
                                  char **param_out) {
   *param_out = NULL;
@@ -43,6 +44,7 @@ HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
 }
 
 void on_client(int client_fd, void *context) {
+  set_read_timeout(client_fd, 3);
   HTTPRequest req;
   req.headers = NULL;
   size_t buffersize = 1000;

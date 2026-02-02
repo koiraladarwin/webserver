@@ -7,6 +7,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+void set_read_timeout(int sockfd, int seconds) {
+  struct timeval tv;
+  tv.tv_sec = seconds;
+  tv.tv_usec = 0;
+  if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+    perror("setsockopt");
+  }
+}
+
 struct Server server_constructor(int domain, int service, int protocol,
                                  u_long interface, int port, int backlog,
                                  ClientCallback on_client, void *context) {

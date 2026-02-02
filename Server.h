@@ -22,7 +22,7 @@ struct Server {
 
   int socket_fd;
 };
-
+void set_read_timeout(int sockfd, int seconds); 
 struct Server server_constructor(int domain, int service, int protocol,
                                  u_long interface, int port, int backlog,
                                  ClientCallback on_client, void *context);

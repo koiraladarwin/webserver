@@ -120,7 +120,7 @@ void on_client(int client_fd, void *context) {
       continue;
     }
 
-    req.body = &buffer[final_headers_size];
+    req.body = &buffer[final_headers_size];// make sure that buffer is not reallocated again when req.body is still accessed
     req.body_len = buffer_read - final_headers_size;
     HTTPServer *http_server = context; // refrensing ourself (kinda like this in
                                        // obj oriented language)

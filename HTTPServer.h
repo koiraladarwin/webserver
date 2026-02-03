@@ -23,5 +23,6 @@ typedef struct {
 HTTPServer http_server_constructor(uint16_t port);
 void http_listen_and_server(HTTPServer *http_server);
 int add_handler(HTTPServer *http_server, HTTPHandler handler);
-
+HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
+                                 char **param_out);
 #endif

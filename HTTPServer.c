@@ -9,43 +9,13 @@
 #include <string.h>
 #include <unistd.h>
 
-HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
-                                 char **param_out) {
-  *param_out = NULL;
-  for (size_t i = 0; i < server->handlers_count; i++) {
-    HTTPHandler *h = &server->handlers[i];
-    switch (h->route_type) {
-    case ROUTE_EXACT:
-      if (strncmp(req->URI, h->route, req->URI_len) == 0)
-        return h;
-      break;
-    case ROUTE_PREFIX:
-      // route ends with /*, strip last 2 chars
-      if (strncmp(req->URI, h->route, strlen(h->route) - 2) == 0)
-        return h;
-      break;
-    case ROUTE_PARAM: {
-      size_t prefix_len = 0;
-      while (h->route[prefix_len] && h->route[prefix_len] != ':')
-        prefix_len++;
-      if (strncmp(req->URI, h->route, prefix_len) == 0) {
-        size_t param_len = req->URI_len - prefix_len;
-        *param_out = malloc(param_len + 1);
-        memcpy(*param_out, req->URI + prefix_len, param_len);
-        (*param_out)[param_len] = '\0';
-        return h;
-      }
-      break;
-    }
-    }
-  }
-  return NULL;
-}
-
 void on_client(int client_fd, void *context) {
+
   set_read_timeout(client_fd, 3);
+
   HTTPRequest req;
   req.headers = NULL;
+
   size_t buffersize = 1000;
   char *buffer = malloc(buffersize);
   ssize_t buffer_read = 0;
@@ -120,7 +90,9 @@ void on_client(int client_fd, void *context) {
       continue;
     }
 
-    req.body = &buffer[final_headers_size];// make sure that buffer is not reallocated again when req.body is still accessed
+    req.body =
+        &buffer[final_headers_size]; // make sure that buffer is not reallocated
+                                     // again when req.body is still accessed
     req.body_len = buffer_read - final_headers_size;
     HTTPServer *http_server = context; // refrensing ourself (kinda like this in
                                        // obj oriented language)
@@ -137,19 +109,20 @@ void on_client(int client_fd, void *context) {
         res.write_header(&res, "Connection", "keep-alive");
       };
     }
-
+    // this later part is not i/o blocked
     char *param = NULL;
     HTTPHandler *matched_handler =
         route_match_handler(http_server, &req, &param);
 
     if (matched_handler) {
       req.param = param;
+      //this handle func should be in event loop
       matched_handler->handler_func(&req, &res);
     } else {
       res.write_status_code(&res, 404);
       res.write_body(&res, "<h1>NOT FOUND</h1>");
     }
-
+    //here we need to write all the writer stuff to the client_fd with non blocking
     if (connection_header) {
       fflush(0);
 
@@ -195,6 +168,38 @@ void on_client(int client_fd, void *context) {
   close(client_fd);
 }
 
+HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
+                                 char **param_out) {
+  *param_out = NULL;
+  for (size_t i = 0; i < server->handlers_count; i++) {
+    HTTPHandler *h = &server->handlers[i];
+    switch (h->route_type) {
+    case ROUTE_EXACT:
+      if (strncmp(req->URI, h->route, req->URI_len) == 0)
+        return h;
+      break;
+    case ROUTE_PREFIX:
+      // route ends with /*, strip last 2 chars
+      if (strncmp(req->URI, h->route, strlen(h->route) - 2) == 0)
+        return h;
+      break;
+    case ROUTE_PARAM: {
+      size_t prefix_len = 0;
+      while (h->route[prefix_len] && h->route[prefix_len] != ':')
+        prefix_len++;
+      if (strncmp(req->URI, h->route, prefix_len) == 0) {
+        size_t param_len = req->URI_len - prefix_len;
+        *param_out = malloc(param_len + 1);
+        memcpy(*param_out, req->URI + prefix_len, param_len);
+        (*param_out)[param_len] = '\0';
+        return h;
+      }
+      break;
+    }
+    }
+  }
+  return NULL;
+}
 void http_listen_and_server(HTTPServer *http_server) {
   struct Server server =
       server_constructor(AF_INET, SOCK_STREAM, 0, INADDR_ANY, http_server->port,

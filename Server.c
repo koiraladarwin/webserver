@@ -1,19 +1,26 @@
 #include "Server.h"
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-void set_read_timeout(int sockfd, int seconds) {
-  struct timeval tv;
-  tv.tv_sec = seconds;
-  tv.tv_usec = 0;
-  if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-    perror("setsockopt");
-  }
+Client *client_constructor(int fd) {
+  Client *client = malloc(sizeof(Client));
+  if (!client)
+    return NULL;
+
+  client->fd = fd;
+  client->req_buffer_capacity = 1024;
+  client->req_buffer_read = 0;
+  client->final_headers_size = 0;
+  client->req_buffer = malloc(client->req_buffer_capacity);
+
+  return client;
 }
 
 struct Server server_constructor(int domain, int service, int protocol,
@@ -56,25 +63,50 @@ struct Server server_constructor(int domain, int service, int protocol,
     exit(1);
   }
 
-  server.on_client = on_client;
+  server.on_clients = on_client;
   server.context = context;
 
   return server;
 }
 
-typedef struct {
-  int client_fd;
-  struct Server *server;
-} ThreadArg;
+void set_read_timeout(int sockfd, int seconds) {
+  struct timeval tv;
+  tv.tv_sec = seconds;
+  tv.tv_usec = 0;
+  if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+    perror("setsockopt");
+  }
+}
+void make_socket_nonblocking(int fd) {
+  int flags = fcntl(fd, F_GETFL, 0);
+  fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
 
-void *client_thread(void *args) {
-  ThreadArg *targ = (ThreadArg *)args;
-  targ->server->on_client(targ->client_fd, targ->server->context);
-  free(targ);
+typedef struct {
+  int epoll_fd;
+  void *context;
+  void (*on_clients)(int, void *);
+} EpollThreadCtx;
+
+void *epoll_thread_main(void *arg) {
+  EpollThreadCtx *ctx = arg;
+
+  ctx->on_clients(ctx->epoll_fd, ctx->context);
+
   return NULL;
 }
 
 void server_loop(struct Server *server) {
+  int epoll_fd = epoll_create1(0);
+
+  pthread_t epoll_thread;
+  EpollThreadCtx *ctx = malloc(sizeof *ctx);
+  ctx->epoll_fd = epoll_fd;
+  ctx->context = server->context;
+  ctx->on_clients = server->on_clients;
+
+  pthread_create(&epoll_thread, NULL, epoll_thread_main, ctx);
+
   while (1) {
     socklen_t addr_len = sizeof(server->address);
     int client_fd = accept(server->socket_fd,
@@ -82,14 +114,16 @@ void server_loop(struct Server *server) {
     if (client_fd < 0)
       continue;
 
-    ThreadArg *targ = malloc(sizeof(ThreadArg));
-    targ->client_fd = client_fd;
-    targ->server = server;
+    make_socket_nonblocking(client_fd);
+    set_read_timeout(client_fd, 3);
+    Client *client = client_constructor(client_fd);
+    if (!client)
+      continue;
 
-    pthread_t tid;
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    pthread_create(&tid, &attr, client_thread, targ);
+    struct epoll_event ev;
+    ev.events = EPOLLIN | EPOLLET;
+    ev.data.ptr = client;
+
+    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev);
   }
 }

@@ -92,7 +92,7 @@ void *epoll_thread_main(void *arg) {
   EpollThreadCtx *ctx = arg;
 
   ctx->on_clients(ctx->epoll_fd, ctx->context);
-
+  free(ctx);
   return NULL;
 }
 
@@ -111,9 +111,10 @@ void server_loop(struct Server *server) {
     socklen_t addr_len = sizeof(server->address);
     int client_fd = accept(server->socket_fd,
                            (struct sockaddr *)&server->address, &addr_len);
-    if (client_fd < 0)
-      continue;
-
+    if (client_fd < 0) {
+      perror("accept");
+      exit(1);
+    }
     make_socket_nonblocking(client_fd);
     set_read_timeout(client_fd, 3);
     Client *client = client_constructor(client_fd);
@@ -121,7 +122,7 @@ void server_loop(struct Server *server) {
       continue;
 
     struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET;
+    ev.events = EPOLLIN;
     ev.data.ptr = client;
 
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev);

@@ -49,13 +49,14 @@ void parse_queries(HTTPRequest *req) {
 
 char *get_header(HTTPHeaders *h, char *key) {
   for (size_t i = 0; i < h->size; i++) {
-    char *dup = strdup(h->header[i].name);
-    str_to_lower(dup);
-    if (strcmp(key, dup) == 0) {
-      return h->header[i].value;
+    if (h->header[i].name) {
+      printf("%zu) name: %s\n",i,h->header[i].name);
+      if (strncasecmp(h->header[i].name, key, strlen(key)) == 0) {
+        return h->header[i].value;
+      }
     }
-    free(dup);
   }
+
   return NULL;
 }
 
@@ -65,12 +66,13 @@ HTTPHeaders *headers_init() {
     return NULL;
 
   h->size = 0;
-  h->capacity = 8;
+  h->capacity = 20;
   h->header = malloc(sizeof(HTTPHeader) * h->capacity);
   return h;
 }
 
 void headers_add(HTTPHeaders *h, char *name, char *value) {
+
   if (h->size >= h->capacity) {
     h->capacity *= 2;
 

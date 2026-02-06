@@ -1,4 +1,6 @@
 #include "Server.h"
+#include "HTTPRequest.h"
+#include "HTTPResponse.h"
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <pthread.h>
@@ -19,6 +21,10 @@ Client *client_constructor(int fd) {
   client->req_buffer_read = 0;
   client->final_headers_size = 0;
   client->req_buffer = malloc(client->req_buffer_capacity);
+  client->mode = 1;
+
+  client->res = make_http_response_writer(fd);
+  client->req = malloc(sizeof(HTTPRequest));
 
   return client;
 }
@@ -116,7 +122,7 @@ void server_loop(struct Server *server) {
       exit(1);
     }
     make_socket_nonblocking(client_fd);
-    set_read_timeout(client_fd, 3);
+    // set_read_timeout(client_fd, 3); timeout doest work with epoll
     Client *client = client_constructor(client_fd);
     if (!client)
       continue;

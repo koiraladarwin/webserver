@@ -8,7 +8,8 @@
 
 void home_handler(HTTPRequest *req, HTTPResponseWriter *res) {
   res->write_status_code(res, 200);
-  res->write_body(res, "<h1>hello<h1>");
+  char body[]="<h1>hello<h1>";
+  res->write_body(res, body, strlen(body));
 }
 
 void batman_handler(HTTPRequest *req, HTTPResponseWriter *res) {
@@ -21,32 +22,32 @@ void batman_handler(HTTPRequest *req, HTTPResponseWriter *res) {
 
   res->write_status_code(res, 200);
   res->write_header(res, "Content-Type", "text/html");
-  res->write_body(res, response);
+  res->write_body(res, response, needed);
 }
 
 void test_handler(HTTPRequest *req, HTTPResponseWriter *res) {
-  // Plain text buffer
-  char buf[1024]; // adjust size if you expect many params
-  size_t offset = 0;
+    char buf[1024];
+    size_t offset = 0;
 
-  for (size_t i = 0; i < req->query_count; i++) {
-    char *key = req->queries[i].key;
-    char *value = req->queries[i].value ? req->queries[i].value : "";
+    for (size_t i = 0; i < req->query_count; i++) {
+        char *key = req->queries[i].key;
+        char *value = req->queries[i].value ? req->queries[i].value : "";
+        offset += snprintf(buf + offset, sizeof(buf) - offset, "%s=%s\n", key, value);
+        if (offset >= sizeof(buf))
+            break;
+    }
 
-    offset +=
-        snprintf(buf + offset, sizeof(buf) - offset, "%s=%s\n", key, value);
-    if (offset >= sizeof(buf))
-      break; // prevent overflow
-  }
-  snprintf(buf + offset, sizeof(buf) - offset, "params=%s", req->param);
+    if (req->param)
+        offset += snprintf(buf + offset, sizeof(buf) - offset, "params=%s", req->param);
 
-  res->write_header(res, "Content-Type", "text/html");
-  res->write_status_code(res, 200);
-  res->write_body(res, buf);
+    res->write_header(res, "Content-Type", "text/html");
+    res->write_status_code(res, 200);
+    res->write_body(res, buf, offset);
 }
 
 int main() {
-  signal(SIGPIPE, SIG_IGN);//important -- this prevents our server from exiting when wrtting to close socket
+  signal(SIGPIPE, SIG_IGN); // important -- this prevents our server from
+                            // exiting when wrtting to close socket
   HTTPServer http_server = http_server_constructor(8080);
 
   add_handler(&http_server, (HTTPHandler){"/home", ROUTE_EXACT, home_handler});

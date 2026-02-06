@@ -45,24 +45,25 @@ void on_clients(int epoll_fd, void *context) {
       perror("epoll_wait");
       break;
     }
-    for (int i = 0; i < n_event; i++) {
-      printf("got here");
-      fflush(0);
-      // refrence the client ptr
-      Client *client = events[i].data.ptr;
-      if (!client->req_buffer) {
 
+    for (int i = 0; i < n_event; i++) {
+
+      Client *client = events[i].data.ptr;
+
+      if (!client->req_buffer) {
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
         close(client->fd);
         return;
       }
 
-      HTTPRequest req;
-      req.headers = NULL;
+      if (client->mode == 2) {
+        goto write_mode;
+      }
 
       if (client->req_buffer_capacity <= client->req_buffer_read) {
         client->req_buffer_capacity *= 2;
         char *temp = realloc(client->req_buffer, client->req_buffer_capacity);
+
         if (!temp) {
           break; // break main loop
         }
@@ -77,23 +78,26 @@ void on_clients(int epoll_fd, void *context) {
         continue;
       }
 
-      // http close signal(check for if this close or no data)
+      // http close signal
       if (n <= 0) {
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
         close(client->fd);
-        continue;
+
+        goto free_memory;
       }
 
       client->req_buffer_read += n;
 
       // headers not parsed completely
       if (!client->final_headers_size) {
-        int header_len = parse_headers(client->req_buffer,
-                                       client->req_buffer_capacity, &req);
+        int header_len = parse_headers(
+            client->req_buffer, client->req_buffer_capacity, client->req);
 
         // error parsing
         if (header_len == -1) {
-          break;
+          epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
+          close(client->fd);
+          goto free_memory;
         };
 
         // 2 means headers not complete
@@ -110,20 +114,22 @@ void on_clients(int epoll_fd, void *context) {
           continue; // read more header complete
         }
 
-        parse_queries(&req);
+        parse_queries(client->req);
         client->final_headers_size = header_len;
       }
 
       if (client->final_headers_size <= 0)
         continue;
-
       // only done after sucessfully all headers are parsed
       int int_content_length = 0;
-      char *content_length = get_header(req.headers, "content-length");
+      printf("1 get header\n");
+      printf("headers prt%p\n", client->req->headers);
+      fflush(0);
+      char *content_length = get_header(client->req->headers, "content-length");
       if (content_length) {
         int_content_length = strtol(content_length, NULL, 10);
       }
-
+      free(content_length);
       if (client->req_buffer_read <
           client->final_headers_size + int_content_length) {
         if (client->req_buffer_capacity <= client->req_buffer_read) {
@@ -136,79 +142,131 @@ void on_clients(int epoll_fd, void *context) {
         }
         continue; // read more (body incomplete)
       }
-
       //--------------------------------------------------------------------------------------------
       // this part is not i/o blocked
-      req.body = &client->req_buffer[client->final_headers_size];
-      req.body_len = client->req_buffer_read - client->final_headers_size;
+      client->req->body = &client->req_buffer[client->final_headers_size];
+      client->req->body_len =
+          client->req_buffer_read - client->final_headers_size;
       HTTPServer *http_server = context;
 
-      // this is blocking for now (make this flush at end so its not blocking)
-      HTTPResponseWriter res = make_http_response_writer(client->fd);
+      char *a;
 
-      char *connection_header = NULL;
-      char *h = get_header(req.headers, "connection");
+      printf("2 get header\n");
+      printf("headers prt%p\n", client->req->headers);
+      fflush(0);
+
+      char *h = get_header(client->req->headers, "connection");
+
       if (h) {
-        connection_header = strdup(h);
+        a = strdup(h);
       };
-      if (connection_header) {
-        str_to_lower(connection_header);
-        if (strcmp(connection_header, "keep-alive") == 0) {
-          res.write_header(&res, "Connection", "keep-alive");
+      if (a) {
+        str_to_lower(a);
+        if (strcmp(a, "keep-alive") == 0) {
+          client->res->write_header(client->res, "Connection", "keep-alive");
         };
+
+        free(a);
       }
+      printf("headers prt 2 %p\n", client->req->headers);
+      fflush(0);
 
       char *param = NULL;
       HTTPHandler *matched_handler =
-          route_match_handler(http_server, &req, &param);
+          route_match_handler(http_server, client->req, &param);
 
       if (matched_handler) {
-        req.param = param;
-        matched_handler->handler_func(&req, &res);
+        printf("headers prt 3%p\n", client->req->headers);
+        fflush(0);
+        client->req->param = param;
+        matched_handler->handler_func(client->req, client->res);
       } else {
-        res.write_status_code(&res, 404);
-        res.write_body(&res, "<h1>NOT FOUND</h1>");
-      }
-      //--------------------------------------------------------------------------------------------
+        client->res->write_status_code(client->res, 404);
+        char body[] = "<h1>NOT FOUND</h1>";
 
+        printf("headers prt 3%p\n", client->req->headers);
+        fflush(0);
+
+        rw_write_body(client->res, body, strlen(body));
+
+        printf("headers prt 4%p\n", client->req->headers);
+        fflush(0);
+      }
+
+      printf("headers prt 5%p\n", client->req->headers);
+      fflush(0);
+      struct epoll_event oev = {0};
+      oev.events = EPOLLOUT;
+      oev.data.ptr = events[i].data.ptr;
+
+      epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &oev);
+      client->mode = 2; // write mode
+
+      continue;
+      //--------------------------------------------------------------------------------------------
       // here we need to write all the writer stuff to the client_fd with non
       // blocking epoll wait (we do this later not now)
+    write_mode:
+      int nwrite = rw_flush(client->res);
+      if (nwrite == -2 || nwrite == 2) {
+        continue;
+      }
 
-      if (connection_header) {
-        str_to_lower(connection_header);
-        if (strcmp(connection_header, "keep-alive") == 0) {
-          client->req_buffer_read = 0;
-          client->final_headers_size = 0;
+      if (nwrite == -1) {
+        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
+        close(client->fd);
+        goto free_memory;
+      }
 
-          headers_free(req.headers);
-          req.headers = NULL;
+      if (nwrite == 0) {
+      }
+      char *c = NULL;
+      printf("3 get header\n");
+      printf("headers prt%p\n", client->req->headers);
+      fflush(0);
+      char *b = get_header(client->req->headers, "connection");
+      if (b) {
+        c = strdup(b);
+      };
+      if (c) {
+        str_to_lower(c);
+        if (strcmp(c, "keep-alive") == 0) {
 
-          free(req.URI);
-          req.URI = NULL;
+          client->res->res_buffer_written = 0;
+          client->res->res_buffer_size = 0;
+          client->req->query_count = 0;
+          client->req->headers->size = 0;
+          client->res->mode = 1;
+          struct epoll_event iev = {0};
+          oev.events = EPOLLIN;
+          oev.data.ptr = events[i].data.ptr;
 
-          queries_free(req.queries, req.query_count);
-          req.query_count = 0;
+          epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &iev);
+          client->mode = 1; // read mode
 
-          free(req.param);
-          req.param = NULL;
           continue; // if keep alive reset all and read again from header
         };
       }
-      // if not keep-alive then this is triggered after one cycle
-      headers_free(req.headers);
-      req.headers = NULL;
+    free_memory:
+      printf("------------------------\nfreeing\n-------------------\n");
+      fflush(0);
+      client->res->res_buffer_written = 0;
+      client->res->res_buffer_size = 0;
 
-      free(req.URI);
-      req.URI = NULL;
+      free(client->res->res_buffer);
+      // headers_free(client->req->headers);
 
-      queries_free(req.queries, req.query_count);
-      req.query_count = 0;
+      client->req->URI = NULL;
+      free(client->req->URI);
 
-      free(req.param);
-      req.param = NULL;
+      client->req->query_count = 0;
+      queries_free(client->req->queries, client->req->query_count);
 
+      client->req->param = NULL;
+      free(client->req->param);
+
+      // free(client->req_buffer);
       epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
-      free(client->req_buffer);
       close(client->fd);
     }
   }

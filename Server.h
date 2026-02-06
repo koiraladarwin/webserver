@@ -1,6 +1,8 @@
 #ifndef Server_h
 #define Server_h
 
+#include "HTTPRequest.h"
+#include "HTTPResponse.h"
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -13,11 +15,15 @@ typedef struct {
   size_t req_buffer_read;
 
   size_t final_headers_size;
+  
+  HTTPRequest* req;
+  HTTPResponseWriter* res;
 
+  int mode; // 1 is read 2 is write
 } Client;
-Client* client_constructor(int fd);
+Client *client_constructor(int fd);
 
-typedef void (*ClientCallback)(int epoll_fd,void *context);
+typedef void (*ClientCallback)(int epoll_fd, void *context);
 
 struct Server {
   int domain;

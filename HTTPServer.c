@@ -47,7 +47,7 @@ void on_clients(int epoll_fd, void *context) {
     }
 
     for (int i = 0; i < n_event; i++) {
-
+      printf("triggered event\n");
       Client *client = events[i].data.ptr;
 
       if (!client->req_buffer) {
@@ -207,6 +207,8 @@ void on_clients(int epoll_fd, void *context) {
       // here we need to write all the writer stuff to the client_fd with non
       // blocking epoll wait (we do this later not now)
     write_mode:
+      printf("come write\n");
+      fflush(0);
       int nwrite = rw_flush(client->res);
       if (nwrite == -2 || nwrite == 2) {
         continue;
@@ -237,13 +239,16 @@ void on_clients(int epoll_fd, void *context) {
           client->req->query_count = 0;
           client->req->headers->size = 0;
           client->res->mode = 1;
+          client->final_headers_size = 0;
+
           struct epoll_event iev = {0};
-          oev.events = EPOLLIN;
-          oev.data.ptr = events[i].data.ptr;
+          iev.events = EPOLLIN;
+          iev.data.ptr = events[i].data.ptr;
 
           epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &iev);
           client->mode = 1; // read mode
-
+          printf("go read again");
+          fflush(0);
           continue; // if keep alive reset all and read again from header
         };
       }

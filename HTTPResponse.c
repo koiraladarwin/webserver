@@ -27,13 +27,55 @@ int rw_write_status_code(HTTPResponseWriter *res, int code) {
 
 int rw_write_header(HTTPResponseWriter *res, const char *key,
                     const char *value) {
-  int n = snprintf(res->headers + strlen(res->headers),
-                   sizeof(res->headers) - strlen(res->headers), "%s: %s\r\n",
-                   key, value);
-  return n;
-}
+  // Estimate the length we need: "Key: Value\r\n" + null terminator
+  size_t needed =
+      strlen(key) + 2 + strlen(value) + 2; // key + ": " + value + "\r\n"
 
-// -2 is try again later
+  printf("[DEBUG] rw_write_header called: key='%s', value='%s'\n", key, value);
+  printf("[DEBUG] current headers ptr=%p, size=%zu, capacity=%zu\n",
+         (void *)res->headers, res->headers_size, res->headers_capacity);
+
+  // Check if we need to grow the buffer
+  if (res->headers_size + needed >= res->headers_capacity) {
+    size_t new_capacity =
+        (res->headers_capacity * 2 > res->headers_size + needed)
+            ? res->headers_capacity * 2
+            : res->headers_size + needed + 1;
+
+    printf("[DEBUG] realloc needed: new_capacity=%zu\n", new_capacity);
+
+    char *tmp = realloc(res->headers, new_capacity);
+    if (!tmp) {
+      fprintf(stderr, "[ERROR] realloc failed in rw_write_header\n");
+      return -1;
+    }
+
+    printf("[DEBUG] realloc done: old_ptr=%p, new_ptr=%p\n",
+           (void *)res->headers, (void *)tmp);
+
+    res->headers = tmp;
+    res->headers_capacity = new_capacity;
+  }
+
+  // Write into the buffer
+  int n = snprintf(res->headers + res->headers_size,
+                   res->headers_capacity - res->headers_size, "%s: %s\r\n", key,
+                   value);
+
+  if (n < 0) {
+    fprintf(stderr, "[ERROR] snprintf failed\n");
+    return -1; // encoding error
+  }
+
+  res->headers_size += n;
+
+  printf("[DEBUG] header written: n=%d, new headers_size=%zu\n", n,
+         res->headers_size);
+  printf("[DEBUG] headers ptr=%p, content=%.*s\n", (void *)res->headers,
+         (int)res->headers_size, res->headers);
+
+  return 0;
+} // -2 is try again later
 // -1 is error
 // 0 is fully flushed
 // 2 partial flush
@@ -46,17 +88,36 @@ int rw_flush(HTTPResponseWriter *res) {
                 res->res_buffer_size - res->res_buffer_written);
 
   if (n == 0) {
+    printf("n returned 0\n");
+    fflush(0);
     return -2;
   }
 
   if (n < 0) {
+    printf("n returned < 0, errno=%d: %s\n", errno, strerror(errno));
+    fflush(0);
+
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      printf("n is saying try again\n");
+      fflush(0);
       return -2; // try again later
     }
+    printf("n is errror \n");
+    printf("buffer written this iteration %d\n", n);
+    printf("buffer size %zu\n", res->res_buffer_size);
+    printf("buffer capacity %zu\n", res->res_buffer_capacity);
+    printf("buffer writen %zu\n", res->res_buffer_written);
+    fflush(0);
+
     return -1; // real error
   }
 
   res->res_buffer_written += n;
+  printf("buffer written this iteration %d\n", n);
+  printf("buffer size %zu\n", res->res_buffer_size);
+  printf("buffer capacity %zu\n", res->res_buffer_capacity);
+  printf("buffer writen %zu\n", res->res_buffer_written);
+  fflush(0);
   if (res->res_buffer_written == res->res_buffer_size) {
     return 0;
   }
@@ -67,72 +128,49 @@ int rw_write_body(HTTPResponseWriter *res, const char *body, size_t body_len) {
   static unsigned long canary = CANARY_VALUE;
 
   printf("\n========== ENTER rw_write_body ==========\n");
-  CHECK("entry");
 
-  /* ---- write Content-Length header ---- */
   char content_length_str[32];
   snprintf(content_length_str, sizeof(content_length_str), "%zu", body_len);
 
-  printf("[INFO] calling write_header(Content-Length)\n");
   res->write_header(res, "Content-Length", content_length_str);
-  CHECK("after write_header");
 
-  /* ---- calculate sizes ---- */
   size_t status_len = strlen(res->status_line);
   size_t headers_len = strlen(res->headers);
 
   size_t total_size = status_len + headers_len + 2 + body_len;
 
-  printf("[INFO] status_len=%zu headers_len=%zu body_len=%zu total=%zu\n",
-         status_len, headers_len, body_len, total_size);
-
-  /* ---- ensure buffer capacity ---- */
   if (res->res_buffer_capacity < total_size) {
-    printf("[INFO] realloc needed (old cap=%zu)\n", res->res_buffer_capacity);
-
+    printf("reallocating res_buffer\n");
+    fflush(0);
     res->res_buffer_capacity = total_size;
 
     char *tmp = realloc(res->res_buffer, res->res_buffer_capacity);
-    printf("[INFO] realloc returned %p\n", (void *)tmp);
 
     if (!tmp) {
-      printf("[ERROR] realloc failed\n");
       return -1;
     }
 
     res->res_buffer = tmp;
   }
 
-  CHECK("after realloc");
-
-  /* ---- build response buffer ---- */
   size_t offset = 0;
 
-  printf("[COPY] status line\n");
   memcpy(res->res_buffer + offset, res->status_line, status_len);
   offset += status_len;
-  CHECK("after status memcpy");
 
-  printf("[COPY] headers\n");
   memcpy(res->res_buffer + offset, res->headers, headers_len);
   offset += headers_len;
-  CHECK("after headers memcpy");
 
-  printf("[COPY] CRLF\n");
   memcpy(res->res_buffer + offset, "\r\n", 2);
   offset += 2;
-  CHECK("after CRLF memcpy");
 
-  printf("[COPY] body\n");
   memcpy(res->res_buffer + offset, body, body_len);
   offset += body_len;
-  CHECK("after body memcpy");
 
-  /* ---- finalize ---- */
   res->res_buffer_size = offset;
-
-  printf("========== EXIT rw_write_body ==========\n");
-  fflush(stdout);
+  printf("res buffer capacity %zu\n", res->res_buffer_capacity);
+  printf("res buffer size %zu\n", res->res_buffer_size);
+  printf("res buffer ptr %p\n", res->res_buffer);
 
   return 0;
 }
@@ -140,7 +178,9 @@ HTTPResponseWriter *make_http_response_writer(int client_fd) {
   HTTPResponseWriter *res = malloc(sizeof(HTTPResponseWriter));
   res->client_fd = client_fd;
 
-  res->headers[0] = '\0';
+  res->headers_capacity = 1024;
+  res->headers_size = 0;
+  res->headers = malloc(res->headers_capacity);
 
   res->status_line[0] = '\0';
 
@@ -150,6 +190,6 @@ HTTPResponseWriter *make_http_response_writer(int client_fd) {
   res->res_buffer_capacity = 1024;
   res->res_buffer_size = 0;
   res->res_buffer = malloc(res->res_buffer_capacity);
-
+  res->res_buffer_written = 0;
   return res;
 }

@@ -25,6 +25,10 @@ Client *client_constructor(int fd) {
 
   client->res = make_http_response_writer(fd);
   client->req = malloc(sizeof(HTTPRequest));
+  printf("--------------------------------------\n");
+  printf("new client added\n");
+  printf("new client res prt %p\n",client->res->res_buffer);
+  printf("--------------------------------------\n");
 
   return client;
 }
@@ -121,6 +125,7 @@ void server_loop(struct Server *server) {
       perror("accept");
       exit(1);
     }
+
     make_socket_nonblocking(client_fd);
     // set_read_timeout(client_fd, 3); timeout doest work with epoll
     Client *client = client_constructor(client_fd);

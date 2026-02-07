@@ -19,7 +19,9 @@ struct HTTPResponseWriter {
     int (*write_header)(HTTPResponseWriter*, const char* key, const char* value);
     int (*write_body)(HTTPResponseWriter*, const char* body,size_t body_len);
 
-    char headers[1024];
+    char* headers;
+    size_t headers_capacity;
+    size_t headers_size;
     char status_line[90];
 };
 

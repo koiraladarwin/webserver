@@ -98,8 +98,6 @@ void on_clients(int epoll_fd, void *context) {
       }
 
       if (now - client->last_activity > 10) {
-        printf("this got triggered\n");
-        fflush(0);
         goto free_memory;
       }
 
@@ -282,8 +280,6 @@ void on_clients(int epoll_fd, void *context) {
         };
       }
     free_memory:
-      printf("freeing memeory");
-      fflush(0);
       client->closed = 1;
       free(client->res->headers);
       free(client->req_buffer);

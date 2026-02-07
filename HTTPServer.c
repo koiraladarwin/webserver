@@ -47,13 +47,11 @@ void on_clients(int epoll_fd, void *context) {
       break;
     }
 
-    printf("checking timeouts\n");
 
     for (Client *client = client_head; client;) {
       Client *next = client->next;
 
       if (!client->closed && now - client->last_activity > 3) {
-        printf("removed a client\n");
         client->closed = 1;
         free(client->res->headers);
         free(client->req_buffer);

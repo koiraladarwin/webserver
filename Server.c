@@ -3,13 +3,27 @@
 #include "HTTPResponse.h"
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
+
+Client *client_head = NULL;
+void remove_client(Client *c) {
+  Client **cur = &client_head;
+  while (*cur) {
+    if (*cur == c) {
+      *cur = (Client *)c->next; // unlink
+      break;
+    }
+    cur = (Client **)&(*cur)->next;
+  }
+}
 
 Client *client_constructor(int fd) {
   Client *client = malloc(sizeof(Client));
@@ -25,11 +39,8 @@ Client *client_constructor(int fd) {
 
   client->res = make_http_response_writer(fd);
   client->req = malloc(sizeof(HTTPRequest));
-  printf("--------------------------------------\n");
-  printf("new client added\n");
-  printf("new client res prt %p\n",client->res->res_buffer);
-  printf("--------------------------------------\n");
-
+  client->last_activity = time(NULL);
+  client->closed = 0;
   return client;
 }
 
@@ -116,7 +127,6 @@ void server_loop(struct Server *server) {
   ctx->on_clients = server->on_clients;
 
   pthread_create(&epoll_thread, NULL, epoll_thread_main, ctx);
-
   while (1) {
     socklen_t addr_len = sizeof(server->address);
     int client_fd = accept(server->socket_fd,
@@ -125,15 +135,28 @@ void server_loop(struct Server *server) {
       perror("accept");
       exit(1);
     }
+    int opt = 1;
+    int idle = 75;
+    int interval = 5;
+    int probes = 3;
+    setsockopt(client_fd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt));
+    setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+    setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval,
+               sizeof(interval));
+    setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPCNT, &probes, sizeof(probes));
 
     make_socket_nonblocking(client_fd);
-    // set_read_timeout(client_fd, 3); timeout doest work with epoll
+
     Client *client = client_constructor(client_fd);
+
+    client->next = client_head;
+    client_head = client;
+
     if (!client)
       continue;
 
     struct epoll_event ev;
-    ev.events = EPOLLIN;
+    ev.events = EPOLLIN | EPOLLERR | EPOLLHUP;
     ev.data.ptr = client;
 
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev);

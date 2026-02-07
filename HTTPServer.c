@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <time.h>
 #include <unistd.h>
 
 #define MAX_EVENTS 10
@@ -34,43 +35,84 @@ int add_handler(HTTPServer *http_server, HTTPHandler handler) {
   return 0;
 }
 
-void printClientptr(Client *client, int n) {
-  printf("\n===== CLIENT POINTER DUMP (%d) =====\n", n);
-
-  printf("client                     = %p\n", (void *)client);
-
-  if (!client) {
-    printf("client is NULL\n");
-    return;
-  }
-
-  printf("client->req_buffer         = %p\n", (void *)client->req_buffer);
-}
-
 void on_clients(int epoll_fd, void *context) {
   while (1) {
-
-    int n_event = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+    time_t now = time(NULL);
+    int n_event = epoll_wait(epoll_fd, events, MAX_EVENTS, 1000);
 
     if (n_event == -1) {
       if (errno == EINTR)
-        continue; // signal interrupted
+        continue; 
       perror("epoll_wait");
       break;
     }
 
-    for (int i = 0; i < n_event; i++) {
-      Client *client = events[i].data.ptr;
-      if (!client->req_buffer) {
+    printf("checking timeouts\n");
+
+    for (Client *client = client_head; client;) {
+      Client *next = client->next;
+
+      if (!client->closed && now - client->last_activity > 3) {
+        printf("removed a client\n");
+        client->closed = 1;
+        free(client->res->headers);
+        free(client->req_buffer);
+        client->res->res_buffer_written = 0;
+        client->res->res_buffer_size = 0;
+
+        free(client->res->res_buffer);
+        headers_free(client->req->headers);
+
+        client->req->URI = NULL;
+        free(client->req->URI);
+
+        client->req->query_count = 0;
+        queries_free(client->req->queries, client->req->query_count);
+
+        client->req->param = NULL;
+        free(client->req->param);
+
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
         close(client->fd);
-        return;
+      }
+      client = next;
+    }
+
+    for (int i = 0; i < n_event; i++) {
+
+      Client *client = events[i].data.ptr;
+
+      if (!client || !client->req_buffer) {
+        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
+        close(client->fd);
+        continue;
       }
 
-      if (client->mode == 2) {
+      // because linux can queue 2 event at once
+      if (client->closed) {
+        continue;
+      }
+
+      if (events[i].events & (EPOLLHUP | EPOLLERR)) {
+        goto free_memory;
+      }
+
+      if (now - client->last_activity > 10) {
+        printf("this got triggered\n");
+        fflush(0);
+        goto free_memory;
+      }
+
+      if (!(events[i].events & EPOLLOUT) && !(events[i].events & EPOLLIN)) {
+        goto free_memory;
+      }
+
+      if (client->mode == 2 && events[i].events & EPOLLOUT) {
+        client->last_activity = now;
         goto write_mode;
       }
 
+      client->last_activity = now;
       if (client->req_buffer_capacity <= client->req_buffer_read) {
         client->req_buffer_capacity *= 2;
         char *temp = realloc(client->req_buffer, client->req_buffer_capacity);
@@ -91,9 +133,6 @@ void on_clients(int epoll_fd, void *context) {
 
       // http close signal
       if (n <= 0) {
-        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
-        close(client->fd);
-
         goto free_memory;
       }
 
@@ -106,8 +145,6 @@ void on_clients(int epoll_fd, void *context) {
 
         // error parsing
         if (header_len == -1) {
-          epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
-          close(client->fd);
           goto free_memory;
         };
 
@@ -152,10 +189,6 @@ void on_clients(int epoll_fd, void *context) {
       }
       //--------------------------------------------------------------------------------------------
       // this part is not i/o blocked
-      printf("final header size %zu\n", client->final_headers_size);
-      printf("final header size %zu\n", client->req_buffer_read);
-      fflush(0);
-      fflush(0);
       client->req->body = &client->req_buffer[client->final_headers_size];
       client->req->body_len =
           client->req_buffer_read - client->final_headers_size;
@@ -194,7 +227,7 @@ void on_clients(int epoll_fd, void *context) {
       }
 
       struct epoll_event oev = {0};
-      oev.events = EPOLLOUT;
+      oev.events = EPOLLOUT | EPOLLERR | EPOLLHUP;
       oev.data.ptr = events[i].data.ptr;
 
       epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &oev);
@@ -205,18 +238,12 @@ void on_clients(int epoll_fd, void *context) {
       // here we need to write all the writer stuff to the client_fd with non
       // blocking epoll wait (we do this later not now)
     write_mode:
-      printf("--------------------------\n");
-      printf("flushing\n");
-      printf("--------------------------\n");
-
       int nwrite = rw_flush(client->res);
       if (nwrite == -2 || nwrite == 2) {
         continue;
       }
 
       if (nwrite == -1) {
-        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
-        close(client->fd);
         goto free_memory;
       }
 
@@ -246,7 +273,7 @@ void on_clients(int epoll_fd, void *context) {
 
           struct epoll_event iev = {0};
 
-          iev.events = EPOLLIN;
+          iev.events = EPOLLIN | EPOLLERR | EPOLLHUP;
           iev.data.ptr = events[i].data.ptr;
 
           epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &iev);
@@ -255,8 +282,9 @@ void on_clients(int epoll_fd, void *context) {
         };
       }
     free_memory:
-      printf("------------------------\nfreeing\n-------------------\n");
+      printf("freeing memeory");
       fflush(0);
+      client->closed = 1;
       free(client->res->headers);
       free(client->req_buffer);
       client->res->res_buffer_written = 0;

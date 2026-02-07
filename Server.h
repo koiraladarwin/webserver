@@ -15,12 +15,20 @@ typedef struct {
   size_t req_buffer_read;
 
   size_t final_headers_size;
-  
-  HTTPRequest* req;
-  HTTPResponseWriter* res;
+
+  HTTPRequest *req;
+  HTTPResponseWriter *res;
 
   int mode; // 1 is read 2 is write
+  time_t last_activity;
+
+  int closed;
+
+  void *next;
 } Client;
+
+extern Client* client_head;
+
 Client *client_constructor(int fd);
 
 typedef void (*ClientCallback)(int epoll_fd, void *context);

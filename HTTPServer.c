@@ -12,7 +12,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MAX_EVENTS 10
+#define MAX_EVENTS 100
 
 struct epoll_event events[MAX_EVENTS];
 
@@ -42,17 +42,17 @@ void on_clients(int epoll_fd, void *context) {
 
     if (n_event == -1) {
       if (errno == EINTR)
-        continue; 
+        continue;
       perror("epoll_wait");
       break;
     }
-
 
     for (Client *client = client_head; client;) {
       Client *next = client->next;
 
       if (!client->closed && now - client->last_activity > 3) {
         client->closed = 1;
+        free_client_count++;
         free(client->res->headers);
         free(client->req_buffer);
         client->res->res_buffer_written = 0;
@@ -69,23 +69,30 @@ void on_clients(int epoll_fd, void *context) {
 
         client->req->param = NULL;
         free(client->req->param);
-
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
         close(client->fd);
+        remove_client(client);
+        free(client);
       }
       client = next;
     }
-
+    printf("this is triggering\n");
     for (int i = 0; i < n_event; i++) {
-
+      // if (events[i].events & EPOLLIN)
+      //   printf("EPOLLIN ");
+      // if (events[i].events & EPOLLOUT)
+      //   printf("EPOLLOUT ");
+      // if (events[i].events & EPOLLERR)
+      //   printf("EPOLLERR ");
+      // if (events[i].events & EPOLLHUP)
+      //   printf("EPOLLHUP ");
+      // if (events[i].events & EPOLLRDHUP)
+      //   printf("EPOLLRDHUP ");
+      // if (events[i].events & EPOLLET)
+      //   printf("EPOLLET "); // Edge-triggered
       Client *client = events[i].data.ptr;
-
-      if (!client || !client->req_buffer) {
-        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
-        close(client->fd);
+      if (!client)
         continue;
-      }
-
       // because linux can queue 2 event at once
       if (client->closed) {
         continue;
@@ -271,14 +278,18 @@ void on_clients(int epoll_fd, void *context) {
 
           iev.events = EPOLLIN | EPOLLERR | EPOLLHUP;
           iev.data.ptr = events[i].data.ptr;
-
+          printf("got here in keep alive");
+          fflush(0);
           epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &iev);
           client->mode = 1; // read mode
           continue; // if keep alive reset all and read again from header
         };
       }
     free_memory:
+      printf("frreede memeory");
+      fflush(0);
       client->closed = 1;
+      free_client_count++;
       free(client->res->headers);
       free(client->req_buffer);
       client->res->res_buffer_written = 0;
@@ -295,8 +306,9 @@ void on_clients(int epoll_fd, void *context) {
 
       client->req->param = NULL;
       free(client->req->param);
-
       epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
+      remove_client(client);
+      free(client);
       close(client->fd);
     }
   }

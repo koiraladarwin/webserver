@@ -5,6 +5,9 @@
 #include "HTTPResponse.h"
 #include <stdint.h>
 
+static int client_count = 0;
+static int free_client_count = 0;
+
 typedef enum { ROUTE_EXACT, ROUTE_PREFIX, ROUTE_PARAM } RouteType;
 
 typedef struct {

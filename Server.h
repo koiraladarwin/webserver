@@ -30,7 +30,7 @@ typedef struct {
 extern Client* client_head;
 
 Client *client_constructor(int fd);
-
+void remove_client(Client *c);
 typedef void (*ClientCallback)(int epoll_fd, void *context);
 
 struct Server {

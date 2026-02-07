@@ -1,6 +1,7 @@
 #include "Server.h"
 #include "HTTPRequest.h"
 #include "HTTPResponse.h"
+#include "HTTPServer.h"
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -131,6 +132,8 @@ void server_loop(struct Server *server) {
     socklen_t addr_len = sizeof(server->address);
     int client_fd = accept(server->socket_fd,
                            (struct sockaddr *)&server->address, &addr_len);
+
+
     if (client_fd < 0) {
       perror("accept");
       exit(1);
@@ -158,7 +161,8 @@ void server_loop(struct Server *server) {
     struct epoll_event ev;
     ev.events = EPOLLIN | EPOLLERR | EPOLLHUP;
     ev.data.ptr = client;
-
+    printf("client added\n");
+    fflush(0);
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev);
   }
 }

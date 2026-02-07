@@ -61,12 +61,14 @@ char *get_header(HTTPHeaders *h, char *key) {
 
 HTTPHeaders *headers_init() {
   HTTPHeaders *h = malloc(sizeof(HTTPHeaders));
+
   if (!h)
     return NULL;
 
   h->size = 0;
   h->capacity = 20;
   h->header = malloc(sizeof(HTTPHeader) * h->capacity);
+
   return h;
 }
 
@@ -152,6 +154,7 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
   }
 
   out->URI = malloc(uri_len + 1);
+
   if (!out->URI)
     return -1;
   memcpy(out->URI, uri, uri_len);

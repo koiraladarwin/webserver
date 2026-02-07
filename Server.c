@@ -161,8 +161,6 @@ void server_loop(struct Server *server) {
     struct epoll_event ev;
     ev.events = EPOLLIN | EPOLLERR | EPOLLHUP;
     ev.data.ptr = client;
-    printf("client added\n");
-    fflush(0);
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &ev);
   }
 }

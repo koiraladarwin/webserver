@@ -76,20 +76,7 @@ void on_clients(int epoll_fd, void *context) {
       }
       client = next;
     }
-    printf("this is triggering\n");
     for (int i = 0; i < n_event; i++) {
-      // if (events[i].events & EPOLLIN)
-      //   printf("EPOLLIN ");
-      // if (events[i].events & EPOLLOUT)
-      //   printf("EPOLLOUT ");
-      // if (events[i].events & EPOLLERR)
-      //   printf("EPOLLERR ");
-      // if (events[i].events & EPOLLHUP)
-      //   printf("EPOLLHUP ");
-      // if (events[i].events & EPOLLRDHUP)
-      //   printf("EPOLLRDHUP ");
-      // if (events[i].events & EPOLLET)
-      //   printf("EPOLLET "); // Edge-triggered
       Client *client = events[i].data.ptr;
       if (!client)
         continue;
@@ -117,9 +104,10 @@ void on_clients(int epoll_fd, void *context) {
 
       client->last_activity = now;
       if (client->req_buffer_capacity <= client->req_buffer_read) {
+        printf("req buffer realloced\n");
+        fflush(0);
         client->req_buffer_capacity *= 2;
         char *temp = realloc(client->req_buffer, client->req_buffer_capacity);
-
         if (!temp) {
           break; // break main loop
         }
@@ -273,21 +261,17 @@ void on_clients(int epoll_fd, void *context) {
 
           free(client->req->URI);
           free(client->req->param);
-
+          headers_free(client->req->headers);
           struct epoll_event iev = {0};
 
           iev.events = EPOLLIN | EPOLLERR | EPOLLHUP;
           iev.data.ptr = events[i].data.ptr;
-          printf("got here in keep alive");
-          fflush(0);
           epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &iev);
           client->mode = 1; // read mode
           continue; // if keep alive reset all and read again from header
         };
       }
     free_memory:
-      printf("frreede memeory");
-      fflush(0);
       client->closed = 1;
       free_client_count++;
       free(client->res->headers);
@@ -307,9 +291,9 @@ void on_clients(int epoll_fd, void *context) {
       client->req->param = NULL;
       free(client->req->param);
       epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
+      close(client->fd);
       remove_client(client);
       free(client);
-      close(client->fd);
     }
   }
 }

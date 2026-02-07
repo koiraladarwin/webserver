@@ -152,6 +152,10 @@ void on_clients(int epoll_fd, void *context) {
       }
       //--------------------------------------------------------------------------------------------
       // this part is not i/o blocked
+      printf("final header size %zu\n", client->final_headers_size);
+      printf("final header size %zu\n", client->req_buffer_read);
+      fflush(0);
+      fflush(0);
       client->req->body = &client->req_buffer[client->final_headers_size];
       client->req->body_len =
           client->req_buffer_read - client->final_headers_size;
@@ -226,16 +230,22 @@ void on_clients(int epoll_fd, void *context) {
       if (c) {
         str_to_lower(c);
         if (strcmp(c, "keep-alive") == 0) {
-
           client->res->res_buffer_written = 0;
           client->res->res_buffer_size = 0;
           client->res->headers_size = 0;
+          client->res->mode = 1;
+
           client->req->query_count = 0;
           client->req->headers->size = 0;
-          client->res->mode = 1;
+          client->req->body_len = 0;
+          client->req_buffer_read = 0;
           client->final_headers_size = 0;
 
+          free(client->req->URI);
+          free(client->req->param);
+
           struct epoll_event iev = {0};
+
           iev.events = EPOLLIN;
           iev.data.ptr = events[i].data.ptr;
 

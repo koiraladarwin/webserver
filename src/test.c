@@ -1,6 +1,6 @@
-#include "HTTPRequest.h"
-#include "HTTPResponse.h"
-#include "HTTPServer.h"
+#include "../includes/HTTPRequest.h"
+#include "../includes/HTTPResponse.h"
+#include "../includes/HTTPServer.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>

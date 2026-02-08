@@ -1,8 +1,8 @@
-#include "HTTPServer.h"
-#include "HTTPRequest.h"
-#include "HTTPResponse.h"
-#include "Helper.h"
-#include "Server.h"
+#include "../includes/HTTPServer.h"
+#include "../includes/HTTPRequest.h"
+#include "../includes/HTTPResponse.h"
+#include "../includes/Helper.h"
+#include "../includes/Server.h"
 #include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -50,26 +50,36 @@ void on_clients(int epoll_fd, void *context) {
     for (Client *client = client_head; client;) {
       Client *next = client->next;
 
-      if (!client->closed && now - client->last_activity > 10) {
+      if (!client->closed && now - client->last_activity > 75) {
         client->closed = 1;
-        free(client->res->headers);
         free(client->req_buffer);
-        client->res->res_buffer_written = 0;
-        client->res->res_buffer_size = 0;
 
         free(client->res->res_buffer);
-        headers_free(client->req->headers);
+        client->res->res_buffer = NULL;
 
-        client->req->URI = NULL;
+        free(client->res->headers);
+        client->res->headers = NULL;
+
+        free(client->res);
+        client->res = NULL;
+
+        headers_free(client->req->headers);
+        client->req->headers = NULL;
+
         free(client->req->URI);
+        client->req->URI = NULL;
 
         queries_free(client->req->queries, client->req->query_count);
-        client->req->query_count = 0;
 
-        client->req->param = NULL;
         free(client->req->param);
+        client->req->param = NULL;
+
+        free(client->req);
+        client->req = NULL;
+
         epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
         close(client->fd);
+
         remove_client(client);
         free(client);
       }
@@ -175,7 +185,7 @@ void on_clients(int epoll_fd, void *context) {
         }
         continue; // read more (body incomplete)
       }
-      //--------------------------------------------------------------------------------------------
+
       // this part is not i/o blocked
       client->req->body = &client->req_buffer[client->final_headers_size];
       client->req->body_len =
@@ -222,9 +232,7 @@ void on_clients(int epoll_fd, void *context) {
       client->mode = 2; // write mode
 
       continue;
-      //--------------------------------------------------------------------------------------------
-      // here we need to write all the writer stuff to the client_fd with non
-      // blocking epoll wait (we do this later not now)
+      // here we need to write all the writer stuff to the client_fd with epoll
     write_mode:
       int nwrite = rw_flush(client->res);
       if (nwrite == -2 || nwrite == 2) {
@@ -272,7 +280,7 @@ void on_clients(int epoll_fd, void *context) {
           iev.data.ptr = events[i].data.ptr;
           epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &iev);
           client->mode = 1; // read mode
-                            //
+
           free(c);
           continue; // if keep alive reset all and read again from header
         };

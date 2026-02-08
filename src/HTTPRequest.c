@@ -1,5 +1,5 @@
-#include "HTTPRequest.h"
-#include "Helper.h"
+#include "../includes/HTTPRequest.h"
+#include "../includes/Helper.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,7 +9,7 @@
 #define MAX_HTTP_VERSION_SIZE 8
 
 void queries_free(HTTPQuery *query, size_t len) {
-  for (int i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++) {
     free(query->key);
     free(query->value);
   }
@@ -60,7 +60,6 @@ char *get_header(HTTPHeaders *h, char *key) {
 }
 
 HTTPHeaders *headers_init() {
-  static int headers_init = 0;
   HTTPHeaders *h = malloc(sizeof(HTTPHeaders));
 
   if (!h)
@@ -74,7 +73,6 @@ HTTPHeaders *headers_init() {
 }
 
 void headers_add(HTTPHeaders *h, char *name, char *value) {
-  static int header_add = 0;
 
   if (h->size >= h->capacity) {
     h->capacity *= 2;
@@ -96,8 +94,6 @@ void headers_add(HTTPHeaders *h, char *name, char *value) {
 }
 
 void headers_free(HTTPHeaders *h) {
-  static int freeed_headers = 0;
-  static int freeed_header = 0;
 
   if (!h)
     return;
@@ -121,7 +117,7 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
   if (!headers_terminator)
     return -2;
 
-  if ((headers_terminator - req) + 4 <= req_len) {
+  if ((headers_terminator - req) + 4 <= (long int)req_len) {
     out->body = headers_terminator + 4;
     out->body_len = req_len - ((headers_terminator - req) + 4);
   } else {
@@ -194,7 +190,6 @@ int parse_headers(char *req, size_t req_len, HTTPRequest *out) {
   if (!out->headers) {
     out->headers = headers_init();
   }
-  int i = 0;
   while (
       (header_end = memmem(header_start, headers_terminator + 2 - header_start,
                            "\r\n", 2))) {

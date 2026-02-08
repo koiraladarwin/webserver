@@ -1,0 +1,5 @@
+"includePath": [
+    "${workspaceFolder}/includes",
+    "${workspaceFolder}/src",
+    "${workspaceFolder}/**"
+]

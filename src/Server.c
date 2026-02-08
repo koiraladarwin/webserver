@@ -1,7 +1,6 @@
-#include "Server.h"
-#include "HTTPRequest.h"
-#include "HTTPResponse.h"
-#include "HTTPServer.h"
+#include "../includes/Server.h"
+#include "../includes/HTTPRequest.h"
+#include "../includes/HTTPResponse.h"
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>

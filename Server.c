@@ -59,17 +59,17 @@ struct Server server_constructor(int domain, int service, int protocol,
 
   server.address.sin_family = domain;
   server.address.sin_port = htons(port);
-  server.address.sin_addr.s_addr = htons(server.interface);
+  server.address.sin_addr.s_addr = htonl(server.interface);
 
   server.socket_fd = socket(server.domain, server.service, server.protocol);
-  if (server.socket_fd == 0) {
-    perror("Failed to connect to a server");
+  if (server.socket_fd <= 0) {
+    perror("Failed to create socket");
     exit(0);
   }
 
   int opt = 1;
   setsockopt(server.socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
+  setsockopt(server.socket_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
   int socket_length = sizeof(server.address);
   int ret = bind(server.socket_fd, (struct sockaddr *)&server.address,
                  (socklen_t)socket_length);
@@ -91,14 +91,6 @@ struct Server server_constructor(int domain, int service, int protocol,
   return server;
 }
 
-void set_read_timeout(int sockfd, int seconds) {
-  struct timeval tv;
-  tv.tv_sec = seconds;
-  tv.tv_usec = 0;
-  if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-    perror("setsockopt");
-  }
-}
 void make_socket_nonblocking(int fd) {
   int flags = fcntl(fd, F_GETFL, 0);
   fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -132,8 +124,8 @@ void server_loop(struct Server *server) {
     socklen_t addr_len = sizeof(server->address);
     int client_fd = accept(server->socket_fd,
                            (struct sockaddr *)&server->address, &addr_len);
-
-
+    printf("accepting in pid %d\n", getpid());
+    fflush(stdout);
     if (client_fd < 0) {
       perror("accept");
       exit(1);

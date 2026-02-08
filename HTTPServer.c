@@ -4,11 +4,13 @@
 #include "Helper.h"
 #include "Server.h"
 #include <errno.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -317,13 +319,71 @@ void on_clients(int epoll_fd, void *context) {
   }
 }
 
-void http_listen_and_server(HTTPServer *http_server) {
-  struct Server server =
-      server_constructor(AF_INET, SOCK_STREAM, 0, INADDR_ANY, http_server->port,
-                         1024, &on_clients, http_server);
-  server_loop(&server);
+#define WORKERS  3
+
+static pid_t worker_pids[WORKERS] = {0};
+
+// Forward signals to children
+void forward_signal(int sig) {
+  for (int i = 0; i < WORKERS; i++) {
+    if (worker_pids[i] > 0) {
+      kill(worker_pids[i], sig);
+    }
+  }
+  printf("Parent exiting on signal %d\n", sig);
+  _exit(0);
 }
 
+void http_listen_and_server(HTTPServer *http_server) {
+  // Set up parent signal handlers
+  signal(SIGINT, forward_signal);
+  signal(SIGTERM, forward_signal);
+
+  // Parent creates the listening socket once
+  struct Server server =
+      server_constructor(AF_INET, SOCK_STREAM, 0, INADDR_ANY, http_server->port,
+                        3072 , &on_clients, http_server);
+
+  // Fork worker processes
+  for (int i = 0; i < WORKERS; i++) {
+    pid_t pid = fork();
+    if (pid < 0) {
+      perror("fork failed");
+      exit(1);
+    }
+
+    if (pid == 0) {
+      // Child process: create its own epoll and handle clients
+      printf("Worker %d started (PID %d)\n", i, getpid());
+
+      // Optional: reset signals in child
+      signal(SIGINT, SIG_DFL);
+      signal(SIGTERM, SIG_DFL);
+
+      server_loop(&server); // child runs server loop with shared socket
+      _exit(0);             // child exits cleanly when loop ends
+    } else {
+      // Parent records worker PID
+      worker_pids[i] = pid;
+    }
+  }
+
+  printf("Parent PID %d: all workers started\n", getpid());
+
+  // Parent waits for children to exit
+  int status;
+  while (1) {
+    pid_t wpid = wait(&status);
+    if (wpid == -1) {
+      if (errno == ECHILD)
+        break; // no more children
+    } else {
+      printf("Worker PID %d exited\n", wpid);
+    }
+  }
+
+  printf("All workers exited, parent exiting\n");
+}
 HTTPHandler *route_match_handler(HTTPServer *server, HTTPRequest *req,
                                  char **param_out) {
   *param_out = NULL;

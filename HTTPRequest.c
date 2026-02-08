@@ -60,7 +60,6 @@ char *get_header(HTTPHeaders *h, char *key) {
 }
 
 HTTPHeaders *headers_init() {
-  static int headers_init = 0;
   HTTPHeaders *h = malloc(sizeof(HTTPHeaders));
 
   if (!h)
@@ -74,7 +73,6 @@ HTTPHeaders *headers_init() {
 }
 
 void headers_add(HTTPHeaders *h, char *name, char *value) {
-  static int header_add = 0;
 
   if (h->size >= h->capacity) {
     h->capacity *= 2;
@@ -96,8 +94,6 @@ void headers_add(HTTPHeaders *h, char *name, char *value) {
 }
 
 void headers_free(HTTPHeaders *h) {
-  static int freeed_headers = 0;
-  static int freeed_header = 0;
 
   if (!h)
     return;

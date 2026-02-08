@@ -8,7 +8,7 @@ This server is primarily targeted at **GNU/Linux systems**. Support for Windows 
 
 ## Features
 
---request handling using `epoll` and minimal threading
+request handling using `epoll` and minimal threading
 - Memory-efficient design suitable for old or low-RAM hardware
 - Lightweight, no external dependencies
 - Simple, clean C codebase for learning, modification, and customization

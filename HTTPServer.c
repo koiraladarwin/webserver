@@ -50,9 +50,8 @@ void on_clients(int epoll_fd, void *context) {
     for (Client *client = client_head; client;) {
       Client *next = client->next;
 
-      if (!client->closed && now - client->last_activity > 3) {
+      if (!client->closed && now - client->last_activity > 10) {
         client->closed = 1;
-        free_client_count++;
         free(client->res->headers);
         free(client->req_buffer);
         client->res->res_buffer_written = 0;
@@ -64,8 +63,8 @@ void on_clients(int epoll_fd, void *context) {
         client->req->URI = NULL;
         free(client->req->URI);
 
-        client->req->query_count = 0;
         queries_free(client->req->queries, client->req->query_count);
+        client->req->query_count = 0;
 
         client->req->param = NULL;
         free(client->req->param);
@@ -104,8 +103,6 @@ void on_clients(int epoll_fd, void *context) {
 
       client->last_activity = now;
       if (client->req_buffer_capacity <= client->req_buffer_read) {
-        printf("req buffer realloced\n");
-        fflush(0);
         client->req_buffer_capacity *= 2;
         char *temp = realloc(client->req_buffer, client->req_buffer_capacity);
         if (!temp) {
@@ -253,45 +250,67 @@ void on_clients(int epoll_fd, void *context) {
           client->res->headers_size = 0;
           client->res->mode = 1;
 
-          client->req->query_count = 0;
-          client->req->headers->size = 0;
           client->req->body_len = 0;
           client->req_buffer_read = 0;
+
+          queries_free(client->req->queries, client->req->query_count);
+          client->req->query_count = 0;
+
           client->final_headers_size = 0;
 
           free(client->req->URI);
+          client->req->URI = NULL;
+
           free(client->req->param);
+          client->req->param = NULL;
+
           headers_free(client->req->headers);
+          client->req->headers = NULL;
           struct epoll_event iev = {0};
 
           iev.events = EPOLLIN | EPOLLERR | EPOLLHUP;
           iev.data.ptr = events[i].data.ptr;
           epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &iev);
           client->mode = 1; // read mode
+                            //
+          free(c);
           continue; // if keep alive reset all and read again from header
         };
+        free(c);
+        goto free_memory;
       }
+      free(c);
+
     free_memory:
       client->closed = 1;
-      free_client_count++;
-      free(client->res->headers);
       free(client->req_buffer);
-      client->res->res_buffer_written = 0;
-      client->res->res_buffer_size = 0;
 
       free(client->res->res_buffer);
+      client->res->res_buffer = NULL;
+
+      free(client->res->headers);
+      client->res->headers = NULL;
+
+      free(client->res);
+      client->res = NULL;
+
       headers_free(client->req->headers);
+      client->req->headers = NULL;
 
-      client->req->URI = NULL;
       free(client->req->URI);
+      client->req->URI = NULL;
 
-      client->req->query_count = 0;
       queries_free(client->req->queries, client->req->query_count);
 
-      client->req->param = NULL;
       free(client->req->param);
+      client->req->param = NULL;
+
+      free(client->req);
+      client->req = NULL;
+
       epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client->fd, NULL);
       close(client->fd);
+
       remove_client(client);
       free(client);
     }

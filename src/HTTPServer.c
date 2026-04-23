@@ -51,7 +51,6 @@ void on_clients(int epoll_fd, void *context) {
       Client *next = client->next;
 
       if (!client->closed && now - client->last_activity > 75) {
-        printf("freeing called 3\n");
         client->closed = 1;
         free(client->req_buffer);
 
@@ -254,8 +253,6 @@ void on_clients(int epoll_fd, void *context) {
       if (c) {
         str_to_lower(c);
         if (strcmp(c, "keep-alive") == 0) {
-          printf("freeing called  1\n");
-          fflush(stdout);
           client->res->res_buffer_written = 0;
           client->res->res_buffer_size = 0;
           client->res->headers_size = 0;

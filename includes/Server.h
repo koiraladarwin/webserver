@@ -7,6 +7,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+typedef enum {WRITE,READ} ServerMode;
+
 typedef struct {
   int fd;
 
@@ -19,7 +21,7 @@ typedef struct {
   HTTPRequest *req;
   HTTPResponseWriter *res;
 
-  int mode; // 1 is read 2 is write
+  ServerMode mode; // 1 is read 2 is write
   time_t last_activity;
 
   int closed;

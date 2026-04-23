@@ -35,7 +35,7 @@ Client *client_constructor(int fd) {
   client->req_buffer_read = 0;
   client->final_headers_size = 0;
   client->req_buffer = malloc(client->req_buffer_capacity);
-  client->mode = 1;
+  client->mode = READ;
 
   client->res = make_http_response_writer(fd);
   client->req = malloc(sizeof(HTTPRequest));

@@ -19,7 +19,8 @@ typedef struct {
   HTTPHandler *handlers;
   size_t handlers_count;
   size_t handlers_capacity;
-} HTTPServer;
+}HTTPServer;
+
 
 HTTPServer http_server_constructor(uint16_t port);
 void http_listen_and_server(HTTPServer *http_server);

@@ -6,6 +6,13 @@
 // Forward declaration
 typedef struct HTTPResponseWriter HTTPResponseWriter;
 
+typedef enum {
+    FLUSH_TRY_AGAIN,
+    FLUSH_ERROR,   
+    FLUSH_DONE,   
+    FLUSH_PARTIAL,
+} FlushResult;
+
 struct HTTPResponseWriter {
     int client_fd;
 
@@ -30,7 +37,7 @@ HTTPResponseWriter* make_http_response_writer(int client_fd);
 int rw_write_status_code(HTTPResponseWriter* res, int code);
 int rw_write_header(HTTPResponseWriter* res, const char* key, const char* value);
 int rw_write_body(HTTPResponseWriter* res, const char* body,size_t body_len);
-int rw_flush(HTTPResponseWriter *res);
+FlushResult rw_flush(HTTPResponseWriter *res);
 
 #endif
 

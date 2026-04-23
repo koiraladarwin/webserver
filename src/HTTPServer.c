@@ -106,7 +106,7 @@ void on_clients(int epoll_fd, void *context) {
         goto free_memory;
       }
 
-      if (client->mode == 2 && events[i].events & EPOLLOUT) {
+      if (client->mode == WRITE && events[i].events & EPOLLOUT) {
         client->last_activity = now;
         goto write_mode;
       }
@@ -229,22 +229,22 @@ void on_clients(int epoll_fd, void *context) {
       oev.data.ptr = events[i].data.ptr;
 
       epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &oev);
-      client->mode = 2; // write mode
+      client->mode = WRITE; // write mode
 
       continue;
+
       // here we need to write all the writer stuff to the client_fd with epoll
     write_mode:
-      int nwrite = rw_flush(client->res);
-      if (nwrite == -2 || nwrite == 2) {
+      FlushResult nwrite = rw_flush(client->res);
+
+      if (nwrite == FLUSH_TRY_AGAIN || nwrite == FLUSH_PARTIAL) {
         continue;
       }
 
-      if (nwrite == -1) {
+      if (nwrite == FLUSH_ERROR) {
         goto free_memory;
       }
 
-      if (nwrite == 0) {
-      }
       char *c = NULL;
       char *b = get_header(client->req->headers, "connection");
       if (b) {
@@ -279,7 +279,7 @@ void on_clients(int epoll_fd, void *context) {
           iev.events = EPOLLIN | EPOLLERR | EPOLLHUP;
           iev.data.ptr = events[i].data.ptr;
           epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client->fd, &iev);
-          client->mode = 1; // read mode
+          client->mode = READ; // read mode
 
           free(c);
           continue; // if keep alive reset all and read again from header

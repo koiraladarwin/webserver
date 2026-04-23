@@ -45,11 +45,7 @@ int rw_write_header(HTTPResponseWriter *res, const char *key,
   return 0;
 }
 
-// -2 is try again later
-// -1 is error
-// 0 is fully flushed
-// 2 partial flush
-int rw_flush(HTTPResponseWriter *res) {
+FlushResult rw_flush(HTTPResponseWriter *res) {
   if (res->res_buffer_written == res->res_buffer_size) {
     return 0;
   }
@@ -58,23 +54,23 @@ int rw_flush(HTTPResponseWriter *res) {
                 res->res_buffer_size - res->res_buffer_written);
 
   if (n == 0) {
-    return -2;
+    return FLUSH_TRY_AGAIN;
   }
 
   if (n < 0) {
 
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      return -2; // try again later
+      return FLUSH_TRY_AGAIN; 
     }
 
-    return -1; // real error
+    return FLUSH_ERROR;
   }
 
   res->res_buffer_written += n;
   if (res->res_buffer_written == res->res_buffer_size) {
-    return 0;
+    return FLUSH_DONE;
   }
-  return 2;
+  return FLUSH_PARTIAL;
 }
 
 int rw_write_body(HTTPResponseWriter *res, const char *body, size_t body_len) {

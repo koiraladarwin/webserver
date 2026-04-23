@@ -1,6 +1,6 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -Iincludes
+CFLAGS = -Wall -Wextra -g -O1 -fsanitize=address -fno-omit-frame-pointer -Iincludes
 
 # Project folders
 SRC_DIR = src

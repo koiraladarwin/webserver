@@ -10,8 +10,9 @@
 
 void queries_free(HTTPQuery *query, size_t len) {
   for (size_t i = 0; i < len; i++) {
-    free(query->key);
-    free(query->value);
+
+    free(query[i].key);
+    free(query[i].value);
   }
 }
 

@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define PORT 8080
+
 void home_handler(HTTPRequest *req, HTTPResponseWriter *res) {
   res->write_status_code(res, 200);
   char body[]="<h1>hello<h1>";
@@ -13,16 +15,21 @@ void home_handler(HTTPRequest *req, HTTPResponseWriter *res) {
 }
 
 void batman_handler(HTTPRequest *req, HTTPResponseWriter *res) {
-  const char *body = req->body ? req->body : "no body";
+    const char *body = req->body ? req->body : "no body";
 
-  size_t needed = snprintf(NULL, 0, "<h1>%s</h1>", body) + 1;
-  char response[needed];
+    int len = snprintf(NULL, 0, "<h1>%s</h1>", body);
+    if (len < 0) return;
 
-  snprintf(response, needed, "<h1>%s</h1>", body);
+    char *response = malloc(len + 1);
+    if (!response) return;
 
-  res->write_status_code(res, 200);
-  res->write_header(res, "Content-Type", "text/html");
-  res->write_body(res, response, needed);
+    snprintf(response, len + 1, "<h1>%s</h1>", body);
+
+    res->write_status_code(res, 200);
+    res->write_header(res, "Content-Type", "text/html");
+    res->write_body(res, response, len);  // ✅ NOT len+1
+
+    free(response);
 }
 
 void test_handler(HTTPRequest *req, HTTPResponseWriter *res) {
@@ -46,9 +53,11 @@ void test_handler(HTTPRequest *req, HTTPResponseWriter *res) {
 }
 
 int main() {
+  printf("listening on port %d",PORT);
+  fflush(stdout);
   signal(SIGPIPE, SIG_IGN); // important -- this prevents our server from
                             // exiting when wrtting to close socket
-  HTTPServer http_server = http_server_constructor(8080);
+  HTTPServer http_server = http_server_constructor(PORT);
 
   add_handler(&http_server, (HTTPHandler){"/home", ROUTE_EXACT, home_handler});
   add_handler(&http_server,
@@ -58,3 +67,5 @@ int main() {
 
   http_listen_and_server(&http_server);
 }
+
+

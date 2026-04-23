@@ -19,10 +19,6 @@ void queries_free(HTTPQuery *query, size_t len) {
 void parse_queries(HTTPRequest *req) {
   req->query_count = 0;
 
-  // unnessary now since uri is a duped string
-  /*char *temp_uri = malloc(req->URI_len);*/
-  /*memcpy(temp_uri, req->URI, req->URI_len);*/
-
   char *query_start_pos = strchr(req->URI, '?');
   if (!query_start_pos)
     return; // no query

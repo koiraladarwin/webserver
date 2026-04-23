@@ -15,19 +15,39 @@ void home_handler(HTTPRequest *req, HTTPResponseWriter *res) {
 }
 
 void batman_handler(HTTPRequest *req, HTTPResponseWriter *res) {
-    const char *body = req->body ? req->body : "no body";
 
-    int len = snprintf(NULL, 0, "<h1>%s</h1>", body);
-    if (len < 0) return;
+    const char *body;
+    size_t body_len;
 
-    char *response = malloc(len + 1);
+    if (req->body && req->body_len > 0) {
+        body = req->body;
+        body_len = req->body_len;
+    } else {
+        body = "no body";
+        body_len = 7;
+    }
+
+    const char prefix[] = "<h1>";
+    const char suffix[] = "</h1>";
+
+    size_t total = (sizeof(prefix)-1) + body_len + (sizeof(suffix)-1);
+
+    char *response = malloc(total);
     if (!response) return;
 
-    snprintf(response, len + 1, "<h1>%s</h1>", body);
+    size_t offset = 0;
+
+    memcpy(response + offset, prefix, sizeof(prefix)-1);
+    offset += sizeof(prefix)-1;
+
+    memcpy(response + offset, body, body_len);
+    offset += body_len;
+
+    memcpy(response + offset, suffix, sizeof(suffix)-1);
 
     res->write_status_code(res, 200);
     res->write_header(res, "Content-Type", "text/html");
-    res->write_body(res, response, len);  // ✅ NOT len+1
+    res->write_body(res, response, total);
 
     free(response);
 }

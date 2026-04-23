@@ -51,7 +51,7 @@ void parse_queries(HTTPRequest *req) {
 char *get_header(HTTPHeaders *h, char *key) {
   for (size_t i = 0; i < h->size; i++) {
     if (h->header[i].name) {
-      if (strncasecmp(h->header[i].name, key, strlen(key)) == 0) {
+      if (strcasecmp(h->header[i].name, key) == 0) {
         return h->header[i].value;
       }
     }

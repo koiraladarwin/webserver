@@ -1,7 +1,9 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -g -O1 -fsanitize=address -fno-omit-frame-pointer -Iincludes
-
+# CFLAGS = -Wall -Wextra -g -O1 -fsanitize=address -fno-omit-frame-pointer -Iincludes
+#
+# valgrid mode
+CFLAGS = -Wall -Wextra -g -O0 -Iincludes
 # Project folders
 SRC_DIR = src
 BUILD_DIR = build

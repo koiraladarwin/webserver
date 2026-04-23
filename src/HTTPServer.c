@@ -173,7 +173,7 @@ void on_clients(int epoll_fd, void *context) {
       if (content_length) {
         int_content_length = strtol(content_length, NULL, 10);
       }
-      free(content_length);
+
       if (client->req_buffer_read <
           client->final_headers_size + int_content_length) {
         if (client->req_buffer_capacity <= client->req_buffer_read) {
